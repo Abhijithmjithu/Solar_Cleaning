@@ -1,0 +1,22 @@
+# Core dependencies
+flask
+opencv-python
+numpy
+ultralytics
+scikit-image
+requests
+
+# Optional dependencies
+flask-cors==4.0.0  # For cross-origin requests if needed
+
+# Development/Testing dependencies (optional)
+unittest-xml-reporting==3.2.0
+pytest==7.4.2
+pytest-cov==4.1.0
+
+# Raspberry Pi specific (uncomment if deploying to RPi)
+# RPi.GPIO==0.7.1
+# picamera==1.13
+
+# Alternative OpenCV for Raspberry Pi (if opencv-python fails)
+# opencv-contrib-python==4.8.1.78

@@ -1,0 +1,30 @@
+{
+    "MODEL_PATH": "test_model.pt",
+    "WEATHER_API_KEY": "your_weatherapi_key_here",
+    "DB_PATH": "test_soiling_data.db",
+    "LATITUDE": 40.7128,
+    "LONGITUDE": -74.006,
+    "SOILING_AREA_THRESHOLD": 5.0,
+    "CAMERA_WIDTH": 512,
+    "CAMERA_HEIGHT": 512,
+    "CAPTURE_INTERVAL": 7200,
+    "YOLO_CONFIDENCE": 0.5,
+    "CLAHE_CLIP_LIMIT": 2.0,
+    "CLAHE_TILE_GRID_SIZE": [
+        8,
+        8
+    ],
+    "OVERLAY_ALPHA": 0.4,
+    "RAIN_PROBABILITY_THRESHOLD": 50,
+    "WEATHER_CHECK_HOURS": 1,
+    "UPLOAD_FOLDER": "test_static/uploads",
+    "ALLOWED_EXTENSIONS": [
+        "png",
+        "jpg",
+        "jpeg"
+    ],
+    "FLASK_HOST": "127.0.0.1",
+    "FLASK_PORT": 5001,
+    "FLASK_DEBUG": true,
+    "LOG_LEVEL": "DEBUG"
+}

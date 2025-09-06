@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Solar Panel Monitor</title>
+
+    <!-- Include Chart.js and jQuery -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+    <style>
+        /* Your existing CSS styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #ff6b6b, #ffa500);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            padding: 20px;
+        }
+        .status-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .status-card h3 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .status-card .status-value {
+            font-size: 2em;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .soiling-low { color: #27ae60; }
+        .soiling-medium { color: #f39c12; }
+        .soiling-high { color: #e74c3c; }
+        .image-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            padding: 20px;
+        }
+        .image-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+        }
+        .image-card img {
+            width: 100%;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .chart-section {
+            padding: 20px;
+        }
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin-bottom: 20px;
+        }
+        .alert-section {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 20px;
+        }
+        .alert-section.alert-high {
+            background: #f8d7da;
+            border-color: #f5c6cb;
+        }
+        .btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .btn:hover {
+            background: #0056b3;
+        }
+        .timestamp {
+            color: #666;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+        @media (max-width: 768px) {
+            .image-section {
+                grid-template-columns: 1fr;
+            }
+            .status-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌞 Solar Panel Soiling Monitor</h1>
+            <p>Real-time monitoring of solar panel cleanliness using AI detection</p>
+            <div id="weather-section" style="margin-top: 10px; color: white;">
+                <h3>Current Weather</h3>
+                <p id="current-weather">Loading...</p>
+                <h4>Upcoming Weather (Next Hour)</h4>
+                <p id="upcoming-weather">Loading...</p>
+            </div>
+        </div>
+
+        <div class="status-grid">
+            <div class="status-card">
+                <h3>Soiling Area</h3>
+                <div class="status-value soiling-low" id="soiling-area">--%</div>
+                <div class="timestamp" id="soiling-timestamp">Last updated: --</div>
+            </div>
+            <div class="status-card">
+                <h3>Soiling Intensity</h3>
+                <div class="status-value soiling-low" id="soiling-intensity">--</div>
+                <div class="timestamp">Cleanliness score</div>
+            </div>
+            <div class="status-card">
+                <h3>SSIM Score</h3>
+                <div class="status-value" id="ssim-score">--</div>
+                <div class="timestamp">Similarity to reference</div>
+            </div>
+            <div class="status-card">
+                <h3>System Status</h3>
+                <div class="status-value soiling-low" id="system-status">--</div>
+                <div class="timestamp">No action required</div>
+            </div>
+        </div>
+
+        <div class="image-section">
+            <div class="image-card">
+                <h3>Current Panel Image</h3>
+                <img id="current-image" src="/static/placeholder_panel.jpg" alt="Current panel condition">
+                <div class="timestamp" id="image-timestamp">Captured: --</div>
+            </div>
+            <div class="image-card">
+                <h3>Reference (Clean) Panel</h3>
+                <img src="/static/reference_panel.jpg" alt="Reference clean panel">
+                <div class="timestamp">Baseline for comparison</div>
+            </div>
+        </div>
+
+        <div class="chart-section">
+            <h3>Soiling Trend (Last 24 Hours)</h3>
+            <div class="chart-container">
+                <canvas id="trendChart"></canvas>
+            </div>
+        </div>
+
+        <div id="alert-container"></div>
+
+        <div style="padding: 20px; text-align: center;">
+            <button class="btn" onclick="refreshData()">🔄 Refresh Data</button>
+            <button class="btn" onclick="captureImage()">📷 Capture Image</button>
+            <button class="btn" onclick="downloadReport()">📊 Download Report</button>
+        </div>
+        <div style="margin: 20px 0; text-align: center;">
+            <h3>Upload New Panel Image</h3>
+            <form id="uploadForm" enctype="multipart/form-data">
+                <input type="file" id="imageUpload" name="image" accept="image/*" required />
+                <button type="submit" class="btn">Upload Image</button>
+            </form>
+            <div id="uploadStatus" style="margin-top: 10px; font-weight: bold;"></div>
+        </div>
+    </div>
+
+    <script>
+        let trendChart;
+
+        function initializeChart() {
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            trendChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Soiling Area %',
+                        data: [],
+                        borderColor: '#ff6b6b',
+                        backgroundColor: 'rgba(255, 107, 107, 0.1)',
+                        tension: 0.4
+                    }, {
+                        label: 'Soiling Intensity',
+                        data: [],
+                        borderColor: '#4ecdc4',
+                        backgroundColor: 'rgba(78, 205, 196, 0.1)',
+                        yAxisID: 'y1',
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: 'Soiling Area %' }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: { display: true, text: 'Soiling Intensity' },
+                            grid: { drawOnChartArea: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateWeather(weatherData) {
+            if (!weatherData || !weatherData.current) {
+                document.getElementById('current-weather').textContent = 'Weather data not available.';
+                document.getElementById('upcoming-weather').textContent = '';
+                return;
+            }
+            const current = weatherData.current;
+            const nextHour = weatherData.forecast?.forecastday?.[0]?.hour?.[1];
+
+            const currentText = `Temp: ${current.temp_c}°C, Condition: ${current.condition.text}, Precipitation: ${current.precip_mm} mm`;
+            document.getElementById('current-weather').textContent = currentText;
+
+            if (nextHour) {
+                const upcomingText = `At ${nextHour.time.split(' ')[1]} - Temp: ${nextHour.temp_c}°C, Condition: ${nextHour.condition.text}, Chance of rain: ${nextHour.chance_of_rain}%`;
+                document.getElementById('upcoming-weather').textContent = upcomingText;
+            } else {
+                document.getElementById('upcoming-weather').textContent = 'No forecast data available for next hour.';
+            }
+        }
+
+        function updateData(data) {
+            if (!data) return;
+
+            const soilingArea = parseFloat(data.soiling_area_percent);
+            document.getElementById('soiling-area').textContent = soilingArea.toFixed(1) + '%';
+            document.getElementById('soiling-intensity').textContent = data.soiling_intensity.toFixed(2);
+            document.getElementById('ssim-score').textContent = data.ssim_score.toFixed(3);
+
+            const soilingElement = document.getElementById('soiling-area');
+            soilingElement.className = 'status-value ' + 
+                (soilingArea < 3 ? 'soiling-low' : soilingArea < 8 ? 'soiling-medium' : 'soiling-high');
+
+            const statusElement = document.getElementById('system-status');
+            if (soilingArea < 5) {
+                statusElement.textContent = '✅ Clean';
+                statusElement.className = 'status-value soiling-low';
+            } else if (soilingArea < 10) {
+                statusElement.textContent = '⚠️ Moderate';
+                statusElement.className = 'status-value soiling-medium';
+            } else {
+                statusElement.textContent = '🚨 Needs Cleaning';
+                statusElement.className = 'status-value soiling-high';
+            }
+
+            const timestamp = new Date(data.timestamp).toLocaleString();
+            document.getElementById('soiling-timestamp').textContent = 'Last updated: ' + timestamp;
+            document.getElementById('image-timestamp').textContent = 'Captured: ' + timestamp;
+
+            if (data.image_path) {
+                // Make sure image_path is relative to 'static/' folder, for example: 'uploads/upload_....jpg'
+                document.getElementById('current-image').src = '/static/' + data.image_path + '?t=' + new Date().getTime();
+            }
+
+            updateWeather(data.weather_data);
+            updateAlerts(data);
+        }
+
+        function updateAlerts(data) {
+            const alertContainer = document.getElementById('alert-container');
+            alertContainer.innerHTML = '';
+
+            if (data.alert_sent) {
+                const alertDiv = document.createElement('div');
+                alertDiv.className = 'alert-section alert-high';
+                alertDiv.innerHTML = `
+                    <h4>🚨 Cleaning Alert Active</h4>
+                    <p>Soiling level has exceeded the threshold. Consider cleaning the solar panels.</p>
+                    <p><strong>Soiling Area:</strong> ${typeof data.soiling_area_percent === 'number' && !isNaN(data.soiling_area_percent) ? data.soiling_area_percent.toFixed(1) : '--'}%</p>
+                `;
+                alertContainer.appendChild(alertDiv);
+            }
+        }
+
+        function refreshData() {
+            fetch('/api/data')
+                .then(response => response.json())
+                .then(data => updateData(data))
+                .catch(error => console.error('Error fetching data:', error));
+        }
+
+        function captureImage() {
+            alert('Capturing new image... feature not implemented.');
+        }
+
+        function downloadReport() {
+            alert('Generating report... feature not implemented.');
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeChart();
+            refreshData();
+            setInterval(refreshData, 30000);
+
+            document.getElementById('uploadForm').addEventListener('submit', e => {
+                e.preventDefault();
+                const fileInput = document.getElementById('imageUpload');
+                if (!fileInput.files.length) {
+                    alert('Please choose an image file to upload.');
+                    return;
+                }
+                const formData = new FormData();
+                formData.append('image', fileInput.files[0]);
+
+                document.getElementById('uploadStatus').textContent = 'Uploading...';
+
+                fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    if (response.redirected) {
+                        document.getElementById('uploadStatus').textContent = "Upload successful! Processing...";
+                        setTimeout(() => {
+                            document.getElementById('uploadStatus').textContent = "";
+                            window.location.href = response.url;
+                        }, 1000);
+                    } else if (response.ok) {
+                        document.getElementById('uploadStatus').textContent = 'Upload successful!';
+                        setTimeout(() => {
+                            document.getElementById('uploadStatus').textContent = "";
+                            refreshData();
+                        }, 1000);
+                    } else {
+                        response.text().then(text => {
+                            document.getElementById('uploadStatus').textContent = 'Upload failed: ' + text;
+                        });
+                    }
+                })
+                .catch(error => {
+                    document.getElementById('uploadStatus').textContent = 'Upload error: ' + error.message;
+                });
+            });
+        });
+    </script>
+</body>
+</html>

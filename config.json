@@ -1,0 +1,30 @@
+{
+    "MODEL_PATH": "./yolov8n_translucent_best.pt",
+    "WEATHER_API_KEY": "cad90144fcf14435b10211338250509",
+    "DB_PATH": "soiling_data.db",
+    "LATITUDE": 10.5241,
+    "LONGITUDE": 76.2121,
+    "SOILING_AREA_THRESHOLD": 10,
+    "CAMERA_WIDTH": 512,
+    "CAMERA_HEIGHT": 512,
+    "CAPTURE_INTERVAL": 7200,
+    "YOLO_CONFIDENCE": 0.5,
+    "CLAHE_CLIP_LIMIT": 2.0,
+    "CLAHE_TILE_GRID_SIZE": [
+        8,
+        8
+    ],
+    "OVERLAY_ALPHA": 0.4,
+    "RAIN_PROBABILITY_THRESHOLD": 50,
+    "WEATHER_CHECK_HOURS": 1,
+    "UPLOAD_FOLDER": "static/uploads",
+    "ALLOWED_EXTENSIONS": [
+        "png",
+        "jpg",
+        "jpeg"
+    ],
+    "FLASK_HOST": "0.0.0.0",
+    "FLASK_PORT": 5000,
+    "FLASK_DEBUG": false,
+    "LOG_LEVEL": "INFO"
+}
