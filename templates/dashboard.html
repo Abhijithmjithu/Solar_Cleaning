@@ -162,7 +162,9 @@
                 <div class="status-value soiling-low" id="system-status">--</div>
             </div>
         </div>
-
+        <div id="upload-countdown" style="font-weight:bold; margin-top:10px;">
+            Next upload prompt in: <span id="countdown-timer"></span>
+        </div>
         <div class="image-section">
             <div class="image-card">
                 <h3>Current Panel Image</h3>
@@ -377,6 +379,26 @@
                 });
             });
         });
+        
+        const captureIntervalMs = { capture_interval_ms };
+        let timeRemaining = captureIntervalMs / 1000; // seconds
+
+        function updateCountdown() {
+            if (timeRemaining <= 0) {
+            document.getElementById('countdown-timer').textContent = "Please upload now!";
+            // Optionally trigger upload prompt/modal here
+            alert("Time to upload a new panel image for accurate soiling detection.");
+            timeRemaining = captureIntervalMs / 1000; // reset countdown
+            } else {
+            const minutes = Math.floor(timeRemaining / 60);
+            const seconds = timeRemaining % 60;
+            document.getElementById('countdown-timer').textContent = `${minutes}m ${seconds}s`;
+            timeRemaining--;
+            }
+        }
+
+        updateCountdown(); // initial call to display immediately
+        setInterval(updateCountdown, 1000); // update every second
     </script>
 </body>
 </html>

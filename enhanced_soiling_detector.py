@@ -343,7 +343,8 @@ def dashboard():
         status = get_system_status(soiling_area_percent, alert_sent)
     else:
         status = "No data available"
-    return render_template('dashboard.html', system_status=status)
+    capture_interval_ms = Config.CAPTURE_INTERVAL * 1000
+    return render_template('dashboard.html', system_status=status, capture_interval_ms=capture_interval_ms)
 
 @app.route('/upload', methods=['GET', 'POST'])
 def upload_image():
