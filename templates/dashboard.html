@@ -160,7 +160,6 @@
             <div class="status-card">
                 <h3>System Status</h3>
                 <div class="status-value soiling-low" id="system-status">--</div>
-                <div class="timestamp">No action required</div>
             </div>
         </div>
 
@@ -281,7 +280,7 @@
             if (soilingArea < 5) {
                 statusElement.textContent = '✅ Clean';
                 statusElement.className = 'status-value soiling-low';
-            } else if (soilingArea < 10) {
+            } else if (soilingArea < 7) {
                 statusElement.textContent = '⚠️ Moderate';
                 statusElement.className = 'status-value soiling-medium';
             } else {

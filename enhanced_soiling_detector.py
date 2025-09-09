@@ -55,6 +55,7 @@ class Config:
     CAPTURE_INTERVAL = 7200  # seconds (2 hours)
     UPLOAD_FOLDER = 'static/uploads'
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
+    RAIN_PROBABILITY_THRESHOLD = config_data.get("RAIN_PROBABILITY_THRESHOLD", 75)
 
 print(f"[DEBUG] SOILING_AREA_THRESHOLD loaded: {Config.SOILING_AREA_THRESHOLD}")
 app = Flask(__name__)
@@ -124,7 +125,7 @@ class SoilingDetector:
         return image
 
     def detect_soiling(self, image):
-        results = self.model(image, conf=0.25)
+        results = self.model(image, conf=0.1)
         masks = []
         if results[0].masks is not None:
             for mask in results[0].masks.data:
@@ -214,8 +215,8 @@ class SoilingDetector:
                 rain_prob_hour = int(hour_data.get('chance_of_rain', 0))
                 snow_prob_hour = int(hour_data.get('chance_of_snow', 0))
                 rain_probability = max(rain_probability, rain_prob_hour, snow_prob_hour)
-                
-            rain_expected = rain_probability > 50
+
+            rain_expected = rain_probability > Config.RAIN_PROBABILITY_THRESHOLD
             return rain_expected, data
         except Exception as e:
             logging.error(f"WeatherAPI.com error: {e}")
@@ -248,22 +249,27 @@ class SoilingDetector:
         if image is None:
             logging.error(f"Failed to read image from {filepath}")
             return None, None
-            
         processed_image = self.preprocess_image(image)
         masks = self.detect_soiling(processed_image)
         metrics = self.calculate_soiling_metrics(processed_image, masks)
-        
         rain_expected, weather_data = self.check_weather()
-        # Ensure threshold is float for correct comparison
+
         threshold = float(Config.SOILING_AREA_THRESHOLD)
         suppression_count = self.get_suppression_count()
         alert_needed = False
         debug_msg = f"[DEBUG] soiling_area_percent={metrics['soiling_area_percent']} threshold={threshold} rain_expected={rain_expected} suppression_count={suppression_count} "
+
         if metrics['soiling_area_percent'] >= threshold:
             if rain_expected:
                 suppression_count += 1
-                self.set_suppression_count(suppression_count)
-                debug_msg += f"Suppressed due to rain. New suppression_count={suppression_count}"
+                # Trigger alert if suppression count reaches 2 or more
+                if suppression_count >= 2:
+                    alert_needed = True
+                    self.set_suppression_count(0)
+                    debug_msg += "Alert triggered after multiple suppressions despite rain."
+                else:
+                    self.set_suppression_count(suppression_count)
+                    debug_msg += f"Suppressed due to rain. New suppression_count={suppression_count}"
             else:
                 if suppression_count >= 2:
                     alert_needed = True
@@ -275,6 +281,7 @@ class SoilingDetector:
         else:
             self.set_suppression_count(0)
             debug_msg += "Below threshold. Suppression count reset."
+
         print(debug_msg)
 
         # Generate combined mask for overlay
@@ -298,23 +305,45 @@ class SoilingDetector:
         logging.info(f"Processed and saved masked image: {relative_image_path} - Soiling: {metrics['soiling_area_percent']:.1f}%, Alert sent: {alert_needed}")
         
         return metrics, relative_image_path
+    
+def get_system_status(soiling_area_percent, alert_sent):
+    if soiling_area_percent < 3:
+        return "Clean"
+    elif soiling_area_percent < float(Config.SOILING_AREA_THRESHOLD):
+        return "Moderate"
+    else:
+        if alert_sent:
+            return "Needs cleaning - Alert triggered"
+        else:
+            return "Needs cleaning"
+
 
 # Initialize detector
 detector = SoilingDetector()
 
 # Try to load reference image
 try:
-    if os.path.exists('reference_clean_panel.jpg'):
-        detector.reference_image = cv2.imread('reference_clean_panel.jpg')
+    if os.path.exists('./static/reference_panel.jpg'):
+        detector.reference_image = cv2.imread('./static/reference_panel.jpg')
         logging.info("Reference image loaded successfully")
     else:
-        logging.warning("No reference image found (reference_clean_panel.jpg)")
+        logging.warning("No reference image found (/static/reference_panel.jpg)")
 except Exception as e:
     logging.warning(f"Failed to load reference image: {e}")
 
 @app.route('/')
 def dashboard():
-    return render_template('dashboard.html')
+    conn = sqlite3.connect(Config.DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('SELECT soiling_area_percent, alert_sent FROM soiling_data ORDER BY timestamp DESC LIMIT 1')
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        soiling_area_percent, alert_sent = row
+        status = get_system_status(soiling_area_percent, alert_sent)
+    else:
+        status = "No data available"
+    return render_template('dashboard.html', system_status=status)
 
 @app.route('/upload', methods=['GET', 'POST'])
 def upload_image():
