@@ -2,8 +2,6 @@
 
 An intelligent AI-powered system for detecting and monitoring soiling on solar panels using YOLOv8 computer vision, weather integration, and real-time web dashboard.
 
-![System Demo](docs/demo-screenshot.png)
-
 ## 🚀 Features
 
 ### 🎯 Core Capabilities
