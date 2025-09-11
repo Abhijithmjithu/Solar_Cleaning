@@ -1,6 +1,6 @@
 {
     "MODEL_PATH": "./models/yolov8n_translucent_best.pt",
-    "WEATHER_API_KEY": "cad90144fcf14435b10211338250509",
+    "WEATHER_API_KEY": "API",
     "DB_PATH": "soiling_data.db",
     "LATITUDE": 10.5241,
     "LONGITUDE": 76.2121,
