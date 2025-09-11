@@ -41,7 +41,6 @@ An intelligent AI-powered system for detecting and monitoring soiling on solar p
 ### 1. Clone Repository
 ```bash
 git clone https://github.com/Akshayc002/Solar_Cleaning.git
-cd solar-soiling-detection
 ```
 
 ### 2. Automated Setup (Linux/macOS)
