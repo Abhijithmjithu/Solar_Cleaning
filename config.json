@@ -1,10 +1,10 @@
 {
     "MODEL_PATH": "./models/yolov8n_translucent_best.pt",
-    "WEATHER_API_KEY": "API",
+    "WEATHER_API_KEY": "c68b11cc3d0841efa50101816251209",
     "DB_PATH": "soiling_data.db",
-    "LATITUDE": 10.5241,
-    "LONGITUDE": 76.2121,
-    "SOILING_AREA_THRESHOLD": 7,
+    "LATITUDE": 10.729960,
+    "LONGITUDE": 76.282019,
+    "SOILING_AREA_THRESHOLD": 5.0,
     "CAMERA_WIDTH": 512,
     "CAMERA_HEIGHT": 512,
     "CAPTURE_INTERVAL": 7200,
@@ -25,6 +25,6 @@
     ],
     "FLASK_HOST": "0.0.0.0",
     "FLASK_PORT": 5000,
-    "FLASK_DEBUG": false,
+    "FLASK_DEBUG": true,
     "LOG_LEVEL": "INFO"
 }

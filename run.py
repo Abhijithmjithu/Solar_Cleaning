@@ -25,7 +25,7 @@ def check_config_file():
         
         template_config = {
             "MODEL_PATH": "models/yolov8_soiling.pt",
-            "WEATHER_API_KEY": "your_weatherapi_key_here",
+            "WEATHER_API_KEY": "c68b11cc3d0841efa50101816251209",
             "DB_PATH": "soiling_data.db",
             "LATITUDE": 40.7128,
             "LONGITUDE": -74.0060,
@@ -65,7 +65,7 @@ def check_config_file():
         if config.get('MODEL_PATH') == 'models/yolov8_soiling.pt':
             print("⚠️  Default MODEL_PATH detected - please update with actual model path")
         
-        if config.get('WEATHER_API_KEY') == 'your_weatherapi_key_here':
+        if config.get('WEATHER_API_KEY') == 'c68b11cc3d0841efa50101816251209':
             print("⚠️  Default WEATHER_API_KEY detected - weather features will be limited")
         
         print("✅ config.json loaded successfully")
