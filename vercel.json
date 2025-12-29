@@ -1,0 +1,5 @@
+{
+  "rewrites": [
+    { "source": "/(.*)", "destination": "enhanced_soiling_detector.py" }
+  ]
+}
