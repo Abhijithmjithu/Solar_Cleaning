@@ -1,5 +1,14 @@
 {
-  "rewrites": [
-    { "source": "/(.*)", "destination": "enhanced_soiling_detector.py" }
+  "builds": [
+    {
+      "src": "enhanced_soiling_detector.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "enhanced_soiling_detector.py"
+    }
   ]
 }
