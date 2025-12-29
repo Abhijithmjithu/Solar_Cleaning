@@ -246,26 +246,28 @@
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div class="glass-panel rounded-2xl p-6">
-                        <h3 class="font-bold text-slate-200 mb-4 text-sm uppercase tracking-wide">Manual Override</h3>
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="font-bold text-slate-200 text-sm uppercase tracking-wide">Robot Command</h3>
+                            <span class="text-[10px] text-slate-500 font-mono">V4.0 FIRMWARE</span>
+                        </div>
                         <div class="grid grid-cols-2 gap-3">
-                            <button onclick="triggerCapture()" class="flex flex-col items-center justify-center p-3 rounded-xl bg-slate-800/50 hover:bg-white/10 hover:text-white border border-slate-700 transition-all group">
-                                <i class="fa-solid fa-camera-retro text-xl mb-2 text-slate-400 group-hover:text-white transition-colors"></i>
-                                <span class="text-[10px] font-medium uppercase">Capture</span>
-                            </button>
-
                             <button onclick="triggerDryClean()" class="flex flex-col items-center justify-center p-3 rounded-xl bg-slate-800/50 hover:bg-neon-orange/10 hover:text-neon-orange hover:border-neon-orange/30 border border-slate-700 transition-all group">
-                                <i class="fa-solid fa-wind text-xl mb-2 text-slate-400 group-hover:text-neon-orange transition-colors"></i>
-                                <span class="text-[10px] font-medium uppercase">Dry Clean</span>
+                                <i class="fa-solid fa-wind text-xl mb-1 text-slate-400 group-hover:text-neon-orange transition-colors"></i><span class="text-[10px] font-medium uppercase">Dry Cycle</span>
                             </button>
-
                             <button onclick="triggerWetClean()" class="flex flex-col items-center justify-center p-3 rounded-xl bg-slate-800/50 hover:bg-neon-blue/10 hover:text-neon-blue hover:border-neon-blue/30 border border-slate-700 transition-all group">
-                                <i class="fa-solid fa-faucet-drip text-xl mb-2 text-slate-400 group-hover:text-neon-blue transition-colors"></i>
-                                <span class="text-[10px] font-medium uppercase">Wet Clean</span>
+                                <i class="fa-solid fa-faucet-drip text-xl mb-1 text-slate-400 group-hover:text-neon-blue transition-colors"></i><span class="text-[10px] font-medium uppercase">Wet Cycle</span>
                             </button>
-
+                            <button onclick="triggerReturn()" class="flex flex-col items-center justify-center p-3 rounded-xl bg-slate-800/50 hover:bg-white/10 hover:text-white border border-slate-700 transition-all group">
+                                <i class="fa-solid fa-house-signal text-xl mb-1 text-slate-400 group-hover:text-white transition-colors"></i><span class="text-[10px] font-medium uppercase">Return Home</span>
+                            </button>
+                            <button onclick="triggerStop()" class="flex flex-col items-center justify-center p-3 rounded-xl bg-red-900/20 hover:bg-red-600 hover:text-white border border-red-900/50 hover:border-red-500 transition-all group">
+                                <i class="fa-solid fa-hand text-xl mb-1 text-red-500 group-hover:text-white transition-colors"></i><span class="text-[10px] font-medium uppercase">STOP ALL</span>
+                            </button>
+                            <button onclick="triggerCapture()" class="flex flex-col items-center justify-center p-3 rounded-xl bg-slate-800/50 hover:bg-white/10 hover:text-white border border-slate-700 transition-all group">
+                                <i class="fa-solid fa-camera-retro text-xl mb-1 text-slate-400 group-hover:text-white transition-colors"></i><span class="text-[10px] font-medium uppercase">Capture</span>
+                            </button>
                             <button onclick="downloadReport()" class="flex flex-col items-center justify-center p-3 rounded-xl bg-slate-800/50 hover:bg-neon-purple/10 hover:text-neon-purple hover:border-neon-purple/30 border border-slate-700 transition-all group">
-                                <i class="fa-solid fa-file-csv text-xl mb-2 text-slate-400 group-hover:text-neon-purple transition-colors"></i>
-                                <span class="text-[10px] font-medium uppercase">Export Log</span>
+                                <i class="fa-solid fa-file-csv text-xl mb-1 text-slate-400 group-hover:text-neon-purple transition-colors"></i><span class="text-[10px] font-medium uppercase">Export Log</span>
                             </button>
                         </div>
                     </div>
@@ -483,13 +485,23 @@
         }
 
         function triggerDryClean() {
-            showToast('Manual Override', 'Dry Cleaning sequence initiated.', 'info');
+            showToast('Robot Command', 'Dry Cleaning Cycle initiated...', 'info');
             fetch('/api/manual_dry', { method: 'POST' }).catch(err => console.error("Error", err));
         }
 
         function triggerWetClean() {
-            showToast('Manual Override', 'Wet Cleaning sequence initiated.', 'info');
+            showToast('Robot Command', 'Wet Cleaning Cycle initiated...', 'info');
             fetch('/api/manual_wet', { method: 'POST' }).catch(err => console.error("Error", err));
+        }
+
+        function triggerReturn() {
+            showToast('Robot Command', 'Returning to Base Station...', 'info');
+            fetch('/api/manual_return', { method: 'POST' }).catch(err => console.error(err));
+        }
+
+        function triggerStop() {
+            showToast('EMERGENCY', 'STOP SIGNAL SENT', 'error');
+            fetch('/api/manual_stop', { method: 'POST' }).catch(err => console.error(err));
         }
 
         function downloadReport() { 

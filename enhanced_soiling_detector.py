@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Solar Panel Soiling Detection & Monitoring System
-Features: YOLOv8 AI, Rain Suppression, Dry/Wet Escalation, Arduino Control
+Integrates: YOLOv8 AI + Robot V4.0 (Flip/Move/Pause/Return)
 """
 
 import os
@@ -58,14 +58,15 @@ app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = Config.UPLOAD_FOLDER
 
 # --- ARDUINO CONNECTION SETUP ---
-ARDUINO_PORT = 'COM3' # <--- CHANGE THIS TO YOUR PORT (e.g., /dev/ttyUSB0)
+# IMPORTANT: Change this to your actual port (e.g., '/dev/ttyUSB0' or 'COM3')
+ARDUINO_PORT = 'COM3' 
 BAUD_RATE = 9600
 arduino = None
 
 try:
     arduino = serial.Serial(ARDUINO_PORT, BAUD_RATE, timeout=1)
     time.sleep(2) # Wait for Arduino to reset
-    logging.info(f"Connected to Arduino on {ARDUINO_PORT}")
+    logging.info(f"Connected to Robot V4.0 on {ARDUINO_PORT}")
 except Exception as e:
     logging.warning(f"Arduino connection failed: {e}")
 
@@ -73,8 +74,10 @@ def send_arduino_command(command_char):
     """Sends a single character command to Arduino via Serial"""
     if arduino and arduino.is_open:
         try:
-            arduino.write(command_char.encode())
-            logging.info(f"HARDWARE SIGNAL SENT: {command_char}")
+            # Send uppercase to match your Arduino code checks
+            cmd = command_char.upper()
+            arduino.write(cmd.encode())
+            logging.info(f"ROBOT SIGNAL SENT: {cmd}")
             return True
         except Exception as e:
             logging.error(f"Failed to send to Arduino: {e}")
@@ -282,7 +285,7 @@ class SoilingDetector:
                     if suppression_count >= 2:
                         # Rain persisted too long -> Force Dry Clean
                         alert_type = "Dry"
-                        send_arduino_command('d') # <--- HARDWARE TRIGGER
+                        send_arduino_command('D') # <--- ROBOT TRIGGER (Flip Brush + Move)
                         new_stage = 1  # Escalation
                         suppression_count = 0 
                         debug_msg += "Rain Override -> Dry Clean Initiated"
@@ -294,7 +297,7 @@ class SoilingDetector:
                 else:
                     # Dirty + No Rain -> Dry Clean
                     alert_type = "Dry"
-                    send_arduino_command('d') # <--- HARDWARE TRIGGER
+                    send_arduino_command('D') # <--- ROBOT TRIGGER (Flip Brush + Move)
                     new_stage = 1 # Escalation
                     suppression_count = 0
                     debug_msg += "Dirty -> Dry Clean Initiated"
@@ -308,7 +311,7 @@ class SoilingDetector:
             if is_soiled:
                 # Dry clean failed -> Escalate to Wet Clean
                 alert_type = "Wet"
-                send_arduino_command('w') # <--- HARDWARE TRIGGER
+                send_arduino_command('W') # <--- ROBOT TRIGGER (Flip Wiper + Move)
                 new_stage = 2 # Escalation
                 suppression_count = 0
                 debug_msg += "Dry Failed -> Escalating to Wet Clean"
@@ -434,6 +437,7 @@ def get_data():
                 'ssim_score': row[3],
                 'image_path': row[4],
                 'alert_type': row[5],
+                'alert_sent': row[5] != "None", # Compatibility
                 'weather_data': weather_json
             })
     except Exception as e:
@@ -477,13 +481,23 @@ def export_history():
 # --- MANUAL HARDWARE TRIGGERS ---
 @app.route('/api/manual_dry', methods=['POST'])
 def manual_dry():
-    send_arduino_command('d')
+    send_arduino_command('D')
     return jsonify({"status": "sent", "type": "dry"})
 
 @app.route('/api/manual_wet', methods=['POST'])
 def manual_wet():
-    send_arduino_command('w')
+    send_arduino_command('W')
     return jsonify({"status": "sent", "type": "wet"})
+
+@app.route('/api/manual_return', methods=['POST'])
+def manual_return():
+    send_arduino_command('R')
+    return jsonify({"status": "sent", "type": "return"})
+
+@app.route('/api/manual_stop', methods=['POST'])
+def manual_stop():
+    send_arduino_command('S')
+    return jsonify({"status": "sent", "type": "stop"})
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
