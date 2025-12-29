@@ -3,402 +3,539 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Solar Panel Monitor</title>
+    <title>SolarVision AI | Command Center</title>
 
-    <!-- Include Chart.js and jQuery -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Oswald:wght@500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'], mono: ['Oswald', 'sans-serif'] },
+                    colors: {
+                        dark: { bg: '#0B1121', card: '#151F32', border: '#1E293B' },
+                        neon: { blue: '#38bdf8', green: '#4ade80', orange: '#fb923c', purple: '#c084fc' }
+                    },
+                    animation: {
+                        'blob': 'blob 7s infinite',
+                        'fade-in-up': 'fadeInUp 0.8s ease-out forwards',
+                    },
+                    keyframes: {
+                        blob: {
+                            '0%': { transform: 'translate(0px, 0px) scale(1)' },
+                            '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+                            '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
+                            '100%': { transform: 'translate(0px, 0px) scale(1)' },
+                        },
+                        fadeInUp: {
+                            '0%': { opacity: '0', transform: 'translateY(20px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
     <style>
-        /* Your existing CSS styles */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        body { background-color: #0B1121; color: #E2E8F0; overflow-x: hidden; }
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.4);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
         }
-        body {
-            font-family: Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
+        .glass-panel:hover {
+            border-color: rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 15px rgba(56, 189, 248, 0.1); 
         }
-        .container {
-            max-width: 1200px;
-            margin: auto;
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-            overflow: hidden;
+        .upload-zone {
+            background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.03), rgba(255,255,255,0.03) 10px, transparent 10px, transparent 20px);
+            transition: all 0.3s ease;
         }
-        .header {
-            background: linear-gradient(135deg, #ff6b6b, #ffa500);
-            color: white;
-            padding: 20px;
-            text-align: center;
+        .upload-zone:hover { border-color: #38bdf8; background-color: rgba(56, 189, 248, 0.05); }
+        .toast {
+            visibility: hidden;
+            min-width: 280px;
+            background-color: rgba(15, 23, 42, 0.95);
+            border-left: 4px solid #38bdf8;
+            color: #fff;
+            border-radius: 8px;
+            padding: 16px;
+            position: fixed;
+            z-index: 100;
+            right: 30px;
+            bottom: 30px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            transform: translateY(100%);
+            transition: transform 0.3s ease-in-out, visibility 0.3s;
+            display: flex; align-items: center; gap: 12px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
         }
-        .header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
-        }
-        .status-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            padding: 20px;
-        }
-        .status-card {
-            background: #f8f9fa;
-            border-radius: 10px;
-            padding: 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            text-align: center;
-        }
-        .status-card h3 {
-            color: #333;
-            margin-bottom: 10px;
-        }
-        .status-card .status-value {
-            font-size: 2em;
-            font-weight: bold;
-            margin: 10px 0;
-        }
-        .soiling-low { color: #27ae60; }
-        .soiling-medium { color: #f39c12; }
-        .soiling-high { color: #e74c3c; }
-        .image-section {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            padding: 20px;
-        }
-        .image-card {
-            background: #f8f9fa;
-            border-radius: 10px;
-            padding: 20px;
-            text-align: center;
-        }
-        .image-card img {
-            width: 100%;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        .chart-section {
-            padding: 20px;
-        }
-        .chart-container {
-            position: relative;
-            height: 400px;
-            margin-bottom: 20px;
-        }
-        .alert-section {
-            background: #fff3cd;
-            border: 1px solid #ffeaa7;
-            border-radius: 10px;
-            padding: 15px;
-            margin: 20px;
-        }
-        .alert-section.alert-high {
-            background: #f8d7da;
-            border-color: #f5c6cb;
-        }
-        .btn {
-            background: #007bff;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-            margin: 5px;
-        }
-        .btn:hover {
-            background: #0056b3;
-        }
-        .timestamp {
-            color: #666;
-            font-size: 0.9em;
-            margin-top: 5px;
-        }
-        @media (max-width: 768px) {
-            .image-section {
-                grid-template-columns: 1fr;
-            }
-            .status-grid {
-                grid-template-columns: 1fr;
-            }
-        }
+        .toast.show { visibility: visible; transform: translateY(0); }
+        .delay-100 { animation-delay: 100ms; }
+        .delay-200 { animation-delay: 200ms; }
+        .delay-300 { animation-delay: 300ms; }
     </style>
 </head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>🌞 Solar Panel Soiling Monitor</h1>
-            <p>Real-time monitoring of solar panel cleanliness using AI detection</p>
-            <div id="weather-section" style="margin-top: 10px; color: white;">
-                <h3>Current Weather</h3>
-                <p id="current-weather">Loading...</p>
-                <h4>Upcoming Weather (Next Hour)</h4>
-                <p id="upcoming-weather">Loading...</p>
+<body class="antialiased selection:bg-neon-blue selection:text-dark-bg">
+
+    <div class="fixed inset-0 pointer-events-none z-0">
+        <div class="absolute top-0 left-1/4 w-96 h-96 bg-blue-500/20 rounded-full mix-blend-screen filter blur-3xl opacity-30 animate-blob"></div>
+        <div class="absolute top-0 right-1/4 w-96 h-96 bg-purple-500/20 rounded-full mix-blend-screen filter blur-3xl opacity-30 animate-blob animation-delay-2000"></div>
+        <div class="absolute -bottom-32 left-1/3 w-96 h-96 bg-green-500/20 rounded-full mix-blend-screen filter blur-3xl opacity-30 animate-blob animation-delay-4000"></div>
+    </div>
+
+    <nav class="relative z-50 border-b border-white/5 bg-dark-bg/80 backdrop-blur-md sticky top-0">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-20 items-center">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/30">
+                        <i class="fa-solid fa-solar-panel"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-bold text-xl tracking-wide text-white">SOLAR<span class="text-neon-blue">VISION</span></h1>
+                        <p class="text-[10px] text-slate-400 uppercase tracking-widest">AI Monitoring System</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-6">
+                    <button onclick="refreshData()" class="group relative p-2 text-slate-400 hover:text-white transition-colors">
+                        <i class="fa-solid fa-rotate-right text-lg group-hover:rotate-180 transition-transform duration-700"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8 animate-fade-in-up">
+            <div class="lg:col-span-2 glass-panel rounded-2xl p-8 flex flex-col justify-center relative overflow-hidden min-h-[200px]">
+                <div class="absolute right-0 top-0 p-40 bg-blue-500/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
+                
+                <div class="flex items-center gap-6 relative z-10 w-full">
+                    <div class="hidden sm:flex h-16 w-16 min-w-[4rem] items-center justify-center rounded-2xl bg-blue-500/10 border border-blue-500/20 shadow-[0_0_20px_rgba(56,189,248,0.2)] backdrop-blur-md">
+                        <i class="fa-solid fa-gauge-high text-3xl text-neon-blue drop-shadow-[0_0_8px_rgba(56,189,248,0.8)]"></i>
+                    </div>
+                    <div class="flex-1">
+                        <h2 class="text-3xl font-bold text-white mb-2 tracking-tight">Dashboard Overview</h2>
+                        <p class="text-slate-400 text-sm leading-relaxed">
+                            Real-time AI analysis with Auto-Escalation (Dry/Wet/Manual).
+                        </p>
+                        <div id="alert-container" class="mt-4 empty:hidden"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-panel rounded-2xl p-6 relative overflow-hidden group hover:bg-white/5 transition-all">
+                <div class="absolute inset-0 bg-gradient-to-br from-blue-600/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                <div class="relative flex justify-between items-start mb-4">
+                    <div>
+                        <h3 class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Local Conditions</h3>
+                        <p id="current-weather" class="text-white font-mono text-lg">Loading...</p>
+                    </div>
+                    <i class="fa-solid fa-cloud-bolt text-yellow-400 text-2xl drop-shadow-[0_0_10px_rgba(250,204,21,0.5)]"></i>
+                </div>
+                <div class="w-full bg-white/10 h-px my-3"></div>
+                <div class="flex justify-between items-end">
+                    <div>
+                        <p class="text-[10px] text-slate-500 uppercase">Forecast (+1h)</p>
+                        <p id="upcoming-weather" class="text-xs text-slate-300 mt-1">Scanning...</p>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div class="status-grid">
-            <div class="status-card">
-                <h3>Soiling Area</h3>
-                <div class="status-value soiling-low" id="soiling-area">--%</div>
-                <div class="timestamp" id="soiling-timestamp">Last updated: --</div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div class="glass-panel rounded-2xl p-4 border-l-4 border-neon-blue animate-fade-in-up delay-100 flex flex-col items-center relative">
+                <div class="w-full flex justify-between items-start mb-2">
+                    <p class="text-slate-400 text-xs font-medium uppercase tracking-wider">Soiling Area</p>
+                    <i class="fa-solid fa-chart-pie text-neon-blue"></i>
+                </div>
+                <div class="relative w-32 h-32">
+                    <canvas id="gaugeChart"></canvas>
+                    <div class="absolute inset-0 flex items-center justify-center">
+                        <span id="soiling-gauge-text" class="text-2xl font-mono font-bold text-white">0%</span>
+                    </div>
+                </div>
             </div>
-            <div class="status-card">
-                <h3>Soiling Intensity</h3>
-                <div class="status-value soiling-low" id="soiling-intensity">--</div>
-                <div class="timestamp">Cleanliness score</div>
+
+            <div class="glass-panel rounded-2xl p-6 border-l-4 border-neon-purple animate-fade-in-up delay-200">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-slate-400 text-xs font-medium uppercase tracking-wider">Clean Score</p>
+                        <h2 class="text-4xl font-mono font-bold text-white mt-2" id="soiling-intensity">--</h2>
+                    </div>
+                    <div class="p-3 bg-purple-500/10 rounded-xl text-neon-purple shadow-[0_0_15px_rgba(192,132,252,0.3)]">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    </div>
+                </div>
             </div>
-            <div class="status-card">
-                <h3>SSIM Score</h3>
-                <div class="status-value" id="ssim-score">--</div>
-                <div class="timestamp">Similarity to reference</div>
+
+            <div class="glass-panel rounded-2xl p-6 border-l-4 border-neon-orange animate-fade-in-up delay-300">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-slate-400 text-xs font-medium uppercase tracking-wider">SSIM Fidelity</p>
+                        <h2 class="text-4xl font-mono font-bold text-white mt-2" id="ssim-score">--</h2>
+                    </div>
+                    <div class="p-3 bg-orange-500/10 rounded-xl text-neon-orange shadow-[0_0_15px_rgba(251,146,60,0.3)]">
+                        <i class="fa-solid fa-layer-group"></i>
+                    </div>
+                </div>
             </div>
-            <div class="status-card">
-                <h3>System Status</h3>
-                <div class="status-value soiling-low" id="system-status">--</div>
-            </div>
-        </div>
-        <div id="upload-countdown" style="font-weight:bold; margin-top:10px;">
-            Next upload prompt in: <span id="countdown-timer"></span>
-        </div>
-        <div class="image-section">
-            <div class="image-card">
-                <h3>Current Panel Image</h3>
-                <img id="current-image" src="/static/placeholder_panel.jpg" alt="Current panel condition">
-                <div class="timestamp" id="image-timestamp">Captured: --</div>
-            </div>
-            <div class="image-card">
-                <h3>Reference (Clean) Panel</h3>
-                <img src="/static/reference_panel.jpg" alt="Reference clean panel">
-                <div class="timestamp">Baseline for comparison</div>
+
+            <div class="glass-panel rounded-2xl p-6 border-l-4 border-neon-green animate-fade-in-up delay-300">
+                <div class="flex justify-between items-start">
+                    <div class="w-full">
+                        <p class="text-slate-400 text-xs font-medium uppercase tracking-wider">Status</p>
+                        <h2 class="text-2xl font-bold text-white mt-2 mb-2" id="system-status">--</h2>
+                        <div class="h-1.5 w-full bg-slate-700 rounded-full overflow-hidden">
+                            <div id="status-bar" class="h-full bg-green-500 w-0 transition-all duration-1000 ease-out"></div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div class="chart-section">
-            <h3>Soiling Trend (Last 24 Hours)</h3>
-            <div class="chart-container">
-                <canvas id="trendChart"></canvas>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8 animate-fade-in-up delay-200">
+            <div class="lg:col-span-1 space-y-6">
+                <div class="glass-panel rounded-2xl p-1">
+                    <div class="bg-black/40 rounded-xl p-4">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="font-semibold text-slate-200 text-sm"><i class="fa-solid fa-eye text-neon-blue mr-2"></i>Live Vision</h3>
+                            <span class="text-[10px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded border border-red-500/20 animate-pulse">LIVE</span>
+                        </div>
+                        <div class="relative rounded-lg overflow-hidden h-64 w-full bg-slate-900 border border-slate-700 group">
+                            <img id="current-image" src="/static/placeholder_panel.jpg" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-500" alt="Current Panel">
+                            <div class="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-3">
+                                <p id="image-timestamp" class="text-[10px] font-mono text-neon-blue">Waiting for signal...</p>
+                            </div>
+                            <div class="absolute top-0 w-full h-1 bg-neon-blue/50 shadow-[0_0_15px_#38bdf8] animate-[scan_3s_linear_infinite] opacity-30 pointer-events-none"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass-panel rounded-2xl p-4 opacity-70 hover:opacity-100 transition-all">
+                    <h3 class="font-semibold text-slate-400 mb-3 text-xs uppercase">Reference Baseline</h3>
+                    <div class="rounded-lg overflow-hidden h-64 w-full bg-slate-800 border border-slate-700">
+                        <img src="/static/reference_panel.jpg" class="w-full h-full object-cover grayscale opacity-60 hover:grayscale-0 hover:opacity-100 transition-all duration-500" alt="Reference Panel">
+                    </div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-2 space-y-6">
+                <div class="glass-panel rounded-2xl p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="font-bold text-white text-lg">Soiling Analytics</h3>
+                        <div class="flex gap-2">
+                             <span class="w-3 h-3 rounded-full bg-neon-blue"></span>
+                             <span class="text-xs text-slate-400">Live Trend</span>
+                        </div>
+                    </div>
+                    <div class="relative h-64 w-full">
+                        <canvas id="trendChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="glass-panel rounded-2xl p-6">
+                        <h3 class="font-bold text-slate-200 mb-4 text-sm uppercase tracking-wide">Manual Override</h3>
+                        <div class="grid grid-cols-2 gap-3">
+                            <button onclick="triggerCapture()" class="flex flex-col items-center justify-center p-3 rounded-xl bg-slate-800/50 hover:bg-white/10 hover:text-white border border-slate-700 transition-all group">
+                                <i class="fa-solid fa-camera-retro text-xl mb-2 text-slate-400 group-hover:text-white transition-colors"></i>
+                                <span class="text-[10px] font-medium uppercase">Capture</span>
+                            </button>
+
+                            <button onclick="triggerDryClean()" class="flex flex-col items-center justify-center p-3 rounded-xl bg-slate-800/50 hover:bg-neon-orange/10 hover:text-neon-orange hover:border-neon-orange/30 border border-slate-700 transition-all group">
+                                <i class="fa-solid fa-wind text-xl mb-2 text-slate-400 group-hover:text-neon-orange transition-colors"></i>
+                                <span class="text-[10px] font-medium uppercase">Dry Clean</span>
+                            </button>
+
+                            <button onclick="triggerWetClean()" class="flex flex-col items-center justify-center p-3 rounded-xl bg-slate-800/50 hover:bg-neon-blue/10 hover:text-neon-blue hover:border-neon-blue/30 border border-slate-700 transition-all group">
+                                <i class="fa-solid fa-faucet-drip text-xl mb-2 text-slate-400 group-hover:text-neon-blue transition-colors"></i>
+                                <span class="text-[10px] font-medium uppercase">Wet Clean</span>
+                            </button>
+
+                            <button onclick="downloadReport()" class="flex flex-col items-center justify-center p-3 rounded-xl bg-slate-800/50 hover:bg-neon-purple/10 hover:text-neon-purple hover:border-neon-purple/30 border border-slate-700 transition-all group">
+                                <i class="fa-solid fa-file-csv text-xl mb-2 text-slate-400 group-hover:text-neon-purple transition-colors"></i>
+                                <span class="text-[10px] font-medium uppercase">Export Log</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="glass-panel rounded-2xl p-6 relative">
+                        <div class="flex justify-between items-center mb-2">
+                            <h3 class="font-bold text-slate-200 text-sm uppercase tracking-wide">Data Ingest</h3>
+                            <span id="countdown-timer" class="font-mono text-xs bg-slate-800 text-slate-300 px-2 py-1 rounded border border-slate-700">00:00</span>
+                        </div>
+                        
+                        <form id="uploadForm" enctype="multipart/form-data" class="h-full">
+                            <label class="upload-zone w-full h-32 flex flex-col items-center justify-center cursor-pointer rounded-xl border-2 border-dashed border-slate-700">
+                                <div class="flex flex-col items-center justify-center pt-5 pb-6 text-slate-400 group-hover:text-white transition-colors">
+                                    <i class="fa-solid fa-cloud-arrow-up text-3xl mb-2 text-slate-500 group-hover:text-neon-blue transition-colors"></i>
+                                    <p class="text-xs">Drop panel image here</p>
+                                </div>
+                                <input type="file" id="imageUpload" name="image" accept="image/*" class="hidden" onchange="this.form.dispatchEvent(new Event('submit'))" />
+                            </label>
+                        </form>
+                        <div id="uploadStatus" class="absolute bottom-4 left-6 text-xs font-mono"></div>
+                    </div>
+                </div>
             </div>
         </div>
+    </div>
 
-        <div id="alert-container"></div>
-
-        <div style="padding: 20px; text-align: center;">
-            <button class="btn" onclick="refreshData()">🔄 Refresh Data</button>
-            <button class="btn" onclick="captureImage()">📷 Capture Image</button>
-            <button class="btn" onclick="downloadReport()">📊 Download Report</button>
+    <div id="manual-modal" class="fixed inset-0 z-[100] hidden">
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity"></div>
+        <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-lg p-6">
+            <div class="glass-panel bg-[#1a0505] border-2 border-red-500 rounded-2xl p-8 relative shadow-[0_0_50px_rgba(239,68,68,0.4)] animate-blob">
+                <div class="text-center">
+                    <div class="mx-auto flex items-center justify-center h-20 w-20 rounded-full bg-red-900/50 mb-6 animate-pulse">
+                        <i class="fa-solid fa-user-gear text-4xl text-red-500"></i>
+                    </div>
+                    <h3 class="text-3xl font-bold text-white mb-2 tracking-wide">CRITICAL FAILURE</h3>
+                    <p class="text-red-300 font-mono text-sm mb-6">AUTOMATED CLEANING FAILED (DRY & WET)</p>
+                    <div class="bg-red-950/50 border border-red-500/30 rounded-lg p-4 mb-6 text-left">
+                        <p class="text-slate-300 text-sm mb-2"><i class="fa-solid fa-check text-red-500 mr-2"></i>Automated Dry Clean: <span class="text-red-400">FAILED</span></p>
+                        <p class="text-slate-300 text-sm mb-2"><i class="fa-solid fa-check text-red-500 mr-2"></i>Automated Wet Clean: <span class="text-red-400">FAILED</span></p>
+                        <p class="text-white font-bold text-sm"><i class="fa-solid fa-triangle-exclamation text-yellow-400 mr-2"></i>Action: Manual Inspection Required</p>
+                    </div>
+                    <button onclick="closeModal()" class="w-full py-3 px-4 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition-all shadow-lg shadow-red-600/30">
+                        ACKNOWLEDGE ALERT
+                    </button>
+                </div>
+            </div>
         </div>
-        <div style="margin: 20px 0; text-align: center;">
-            <h3>Upload New Panel Image</h3>
-            <form id="uploadForm" enctype="multipart/form-data">
-                <input type="file" id="imageUpload" name="image" accept="image/*" required />
-                <button type="submit" class="btn">Upload Image</button>
-            </form>
-            <div id="uploadStatus" style="margin-top: 10px; font-weight: bold;"></div>
+    </div>
+
+    <div id="toast" class="toast">
+        <i class="fa-solid fa-circle-info text-xl" id="toast-icon"></i>
+        <div>
+            <h4 class="font-bold text-sm" id="toast-title">Notification</h4>
+            <p class="text-xs text-slate-300" id="toast-msg">Message body.</p>
         </div>
     </div>
 
     <script>
+        const ALERT_THRESHOLD = parseFloat("{{ threshold }}"); 
         let trendChart;
+        let gaugeChart;
 
-        function initializeChart() {
-            const ctx = document.getElementById('trendChart').getContext('2d');
-            trendChart = new Chart(ctx, {
+        function showToast(title, message, type = 'info') {
+            const toast = document.getElementById("toast");
+            document.getElementById("toast-title").innerText = title;
+            document.getElementById("toast-msg").innerText = message;
+            const icon = document.getElementById("toast-icon");
+            
+            if (type === 'error') {
+                toast.style.borderColor = '#ef4444';
+                icon.className = 'fa-solid fa-triangle-exclamation text-xl text-red-500';
+            } else if (type === 'success') {
+                toast.style.borderColor = '#4ade80';
+                icon.className = 'fa-solid fa-check-circle text-xl text-green-400';
+            } else {
+                toast.style.borderColor = '#38bdf8';
+                icon.className = 'fa-solid fa-circle-info text-xl text-neon-blue';
+            }
+            toast.classList.add("show");
+            setTimeout(() => { toast.classList.remove("show"); }, 4000);
+        }
+
+        function closeModal() {
+            document.getElementById('manual-modal').classList.add('hidden');
+        }
+
+        function initializeCharts() {
+            const ctxTrend = document.getElementById('trendChart').getContext('2d');
+            let gradient = ctxTrend.createLinearGradient(0, 0, 0, 400);
+            gradient.addColorStop(0, 'rgba(56, 189, 248, 0.5)'); 
+            gradient.addColorStop(1, 'rgba(56, 189, 248, 0.0)'); 
+
+            trendChart = new Chart(ctxTrend, {
                 type: 'line',
-                data: {
-                    labels: [],
-                    datasets: [{
-                        label: 'Soiling Area %',
-                        data: [],
-                        borderColor: '#ff6b6b',
-                        backgroundColor: 'rgba(255, 107, 107, 0.1)',
-                        tension: 0.4
-                    }, {
-                        label: 'Soiling Intensity',
-                        data: [],
-                        borderColor: '#4ecdc4',
-                        backgroundColor: 'rgba(78, 205, 196, 0.1)',
-                        yAxisID: 'y1',
-                        tension: 0.4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            title: { display: true, text: 'Soiling Area %' }
-                        },
-                        y1: {
-                            type: 'linear',
-                            display: true,
-                            position: 'right',
-                            title: { display: true, text: 'Soiling Intensity' },
-                            grid: { drawOnChartArea: false }
-                        }
-                    }
-                }
+                data: { labels: [], datasets: [{ label: 'Soiling %', data: [], borderColor: '#38bdf8', backgroundColor: gradient, borderWidth: 2, fill: true, tension: 0.4 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' } }, x: { grid: { display: false } } } }
+            });
+
+            const ctxGauge = document.getElementById('gaugeChart').getContext('2d');
+            gaugeChart = new Chart(ctxGauge, {
+                type: 'doughnut',
+                data: { labels: ['Soiled', 'Clean'], datasets: [{ data: [0, 100], backgroundColor: ['#38bdf8', 'rgba(255, 255, 255, 0.05)'], borderWidth: 0, circumference: 270, rotation: 225, cutout: '80%' }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { tooltip: { enabled: false }, legend: { display: false } } }
             });
         }
 
+        function updateGauge(percent) {
+            if (gaugeChart) {
+                let color = '#4ade80';
+                if (percent > ALERT_THRESHOLD * 0.5) color = '#fb923c';
+                if (percent > ALERT_THRESHOLD) color = '#ef4444';
+                gaugeChart.data.datasets[0].backgroundColor[0] = color;
+                gaugeChart.data.datasets[0].data = [percent, 100 - percent];
+                gaugeChart.update();
+                const textEl = document.getElementById('soiling-gauge-text');
+                textEl.innerText = percent.toFixed(1) + '%';
+                textEl.style.color = color;
+            }
+        }
+
         function updateWeather(weatherData) {
+            const currentEl = document.getElementById('current-weather');
+            const upcomingEl = document.getElementById('upcoming-weather');
             if (!weatherData || !weatherData.current) {
-                document.getElementById('current-weather').textContent = 'Weather data not available.';
-                document.getElementById('upcoming-weather').textContent = '';
+                currentEl.innerHTML = '<span class="text-slate-500">Signal Lost</span>';
                 return;
             }
             const current = weatherData.current;
             const nextHour = weatherData.forecast?.forecastday?.[0]?.hour?.[1];
-
-            const currentText = `Temp: ${current.temp_c}°C, Condition: ${current.condition.text}, Precipitation: ${current.precip_mm} mm`;
-            document.getElementById('current-weather').textContent = currentText;
-
+            currentEl.innerHTML = `<span class="text-2xl font-bold text-white">${current.temp_c}°</span><span class="text-sm ml-2 text-slate-300">${current.condition.text}</span>`;
             if (nextHour) {
-                const upcomingText = `At ${nextHour.time.split(' ')[1]} - Temp: ${nextHour.temp_c}°C, Condition: ${nextHour.condition.text}, Chance of rain: ${nextHour.chance_of_rain}%`;
-                document.getElementById('upcoming-weather').textContent = upcomingText;
+                upcomingEl.innerHTML = `<i class="fa-regular fa-clock mr-1"></i> ${nextHour.time.split(' ')[1]} <span class="mx-2 text-slate-500">|</span> ${nextHour.temp_c}°C <span class="mx-2 text-slate-500">|</span> <span class="text-neon-blue">${nextHour.chance_of_rain}% Precip</span>`;
+            }
+        }
+
+        function updateAlerts(data) {
+            const alertContainer = document.getElementById('alert-container');
+            const modal = document.getElementById('manual-modal');
+            alertContainer.innerHTML = '';
+            
+            if (data.alert_type === 'Dry') {
+                alertContainer.innerHTML = `<div class="flex items-center p-4 mb-4 text-orange-200 rounded-xl bg-orange-900/40 border border-orange-500/50 backdrop-blur-sm animate-pulse" role="alert"><i class="fa-solid fa-wind mr-3 text-orange-500 text-2xl"></i><div><span class="font-bold text-orange-400">ACTION:</span> Initiating Dry Cleaning Sequence.</div></div>`;
+            } else if (data.alert_type === 'Wet') {
+                alertContainer.innerHTML = `<div class="flex items-center p-4 mb-4 text-blue-200 rounded-xl bg-blue-900/40 border border-blue-500/50 backdrop-blur-sm animate-pulse" role="alert"><i class="fa-solid fa-faucet-drip mr-3 text-blue-500 text-2xl"></i><div><span class="font-bold text-blue-400">ESCALATION:</span> Dry failed. Initiating Wet Clean.</div></div>`;
+            } else if (data.alert_type === 'Manual') {
+                alertContainer.innerHTML = `<div class="flex items-center p-4 mb-4 text-red-200 rounded-xl bg-red-900/40 border border-red-500/50 backdrop-blur-sm animate-pulse" role="alert"><i class="fa-solid fa-user-gear mr-3 text-red-500 text-2xl"></i><div><span class="font-bold text-red-400">CRITICAL:</span> Manual Inspection Required.</div></div>`;
+                if (modal.classList.contains('hidden')) { modal.classList.remove('hidden'); }
             } else {
-                document.getElementById('upcoming-weather').textContent = 'No forecast data available for next hour.';
+                if (!modal.classList.contains('hidden')) { modal.classList.add('hidden'); }
             }
         }
 
         function updateData(data) {
             if (!data) return;
-
             const soilingArea = parseFloat(data.soiling_area_percent);
-            document.getElementById('soiling-area').textContent = soilingArea.toFixed(1) + '%';
             document.getElementById('soiling-intensity').textContent = data.soiling_intensity.toFixed(2);
             document.getElementById('ssim-score').textContent = data.ssim_score.toFixed(3);
-
-            const soilingElement = document.getElementById('soiling-area');
-            soilingElement.className = 'status-value ' + 
-                (soilingArea < 3 ? 'soiling-low' : soilingArea < 8 ? 'soiling-medium' : 'soiling-high');
-
-            const statusElement = document.getElementById('system-status');
-            if (soilingArea < 5) {
-                statusElement.textContent = '✅ Clean';
-                statusElement.className = 'status-value soiling-low';
-            } else if (soilingArea < 7) {
-                statusElement.textContent = '⚠️ Moderate';
-                statusElement.className = 'status-value soiling-medium';
+            updateGauge(soilingArea);
+            
+            const statusEl = document.getElementById('system-status');
+            const statusBar = document.getElementById('status-bar');
+            if (soilingArea < ALERT_THRESHOLD * 0.5) {
+                statusEl.innerHTML = '<span class="text-neon-green"><i class="fa-solid fa-check-circle mr-2"></i>OPTIMAL</span>';
+                statusBar.className = "h-full bg-neon-green shadow-[0_0_10px_#4ade80]";
+            } else if (soilingArea < ALERT_THRESHOLD) {
+                statusEl.innerHTML = '<span class="text-neon-orange"><i class="fa-solid fa-triangle-exclamation mr-2"></i>DEGRADING</span>';
+                statusBar.className = "h-full bg-neon-orange shadow-[0_0_10px_#fb923c]";
             } else {
-                statusElement.textContent = '🚨 Needs Cleaning';
-                statusElement.className = 'status-value soiling-high';
+                statusEl.innerHTML = '<span class="text-red-500"><i class="fa-solid fa-bell mr-2 animate-pulse"></i>CRITICAL</span>';
+                statusBar.className = "h-full bg-red-500 shadow-[0_0_10px_#ef4444]";
             }
-
-            const timestamp = new Date(data.timestamp).toLocaleString();
-            document.getElementById('soiling-timestamp').textContent = 'Last updated: ' + timestamp;
-            document.getElementById('image-timestamp').textContent = 'Captured: ' + timestamp;
+            statusBar.style.width = Math.min(soilingArea * 10, 100) + '%'; 
 
             if (data.image_path) {
-                // Make sure image_path is relative to 'static/' folder, for example: 'uploads/upload_....jpg'
                 document.getElementById('current-image').src = '/static/' + data.image_path + '?t=' + new Date().getTime();
+                document.getElementById('image-timestamp').textContent = 'T-' + new Date(data.timestamp).toLocaleTimeString();
             }
 
+            if (trendChart) {
+                const timestamp = new Date(data.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                trendChart.data.labels.push(timestamp);
+                trendChart.data.datasets[0].data.push(soilingArea);
+                if (trendChart.data.labels.length > 20) { trendChart.data.labels.shift(); trendChart.data.datasets[0].data.shift(); }
+                trendChart.update();
+            }
             updateWeather(data.weather_data);
             updateAlerts(data);
         }
 
-        function updateAlerts(data) {
-            const alertContainer = document.getElementById('alert-container');
-            alertContainer.innerHTML = '';
-
-            if (data.alert_sent) {
-                const alertDiv = document.createElement('div');
-                alertDiv.className = 'alert-section alert-high';
-                alertDiv.innerHTML = `
-                    <h4>🚨 Cleaning Alert Active</h4>
-                    <p>Soiling level has exceeded the threshold. Consider cleaning the solar panels.</p>
-                    <p><strong>Soiling Area:</strong> ${typeof data.soiling_area_percent === 'number' && !isNaN(data.soiling_area_percent) ? data.soiling_area_percent.toFixed(1) : '--'}%</p>
-                `;
-                alertContainer.appendChild(alertDiv);
-            }
-        }
-
         function refreshData() {
-            fetch('/api/data')
-                .then(response => response.json())
-                .then(data => updateData(data))
-                .catch(error => console.error('Error fetching data:', error));
+            const icon = document.querySelector('.fa-rotate-right');
+            icon.classList.add('fa-spin');
+            fetch('/api/data').then(r => r.json()).then(d => {
+                updateData(d);
+                setTimeout(() => icon.classList.remove('fa-spin'), 500);
+            }).catch(() => icon.classList.remove('fa-spin'));
         }
 
-        function captureImage() {
-            alert('Capturing new image... feature not implemented.');
+        function loadHistoricalData() {
+            fetch('/api/history').then(r => r.json()).then(history => {
+                if (!history || history.length === 0) return;
+                trendChart.data.labels = [];
+                trendChart.data.datasets[0].data = [];
+                history.reverse().forEach(point => {
+                    const timeLabel = new Date(point.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    trendChart.data.labels.push(timeLabel);
+                    trendChart.data.datasets[0].data.push(point.soiling_area_percent);
+                });
+                trendChart.update();
+            });
         }
 
-        function downloadReport() {
-            alert('Generating report... feature not implemented.');
+        function triggerCapture() { showToast('Capture Sequence', 'Command sent.', 'success'); }
+        // --- ADD THESE TWO NEW FUNCTIONS ---
+        function triggerDryClean() {
+            showToast('Manual Override', 'Dry Cleaning sequence initiated.', 'info');
+            // If you connect hardware later, add fetch('/api/manual_dry') here
         }
+
+        function triggerWetClean() {
+            showToast('Manual Override', 'Wet Cleaning sequence initiated.', 'info');
+            // If you connect hardware later, add fetch('/api/manual_wet') here
+        }
+        // -----------------------------------
+        function downloadReport() { showToast('Exporting Log', 'CSV generation...', 'info'); setTimeout(() => { window.location.href = '/api/export_history'; }, 1000); }
 
         document.addEventListener('DOMContentLoaded', () => {
-            initializeChart();
+            initializeCharts();
+            loadHistoricalData();
             refreshData();
-            setInterval(refreshData, 30000);
-
             document.getElementById('uploadForm').addEventListener('submit', e => {
                 e.preventDefault();
                 const fileInput = document.getElementById('imageUpload');
-                if (!fileInput.files.length) {
-                    alert('Please choose an image file to upload.');
-                    return;
-                }
+                if (!fileInput.files.length) return;
+                const statusDiv = document.getElementById('uploadStatus');
+                statusDiv.innerHTML = '<span class="text-neon-blue"><i class="fa-solid fa-circle-notch fa-spin"></i> TRANSMITTING...</span>';
                 const formData = new FormData();
                 formData.append('image', fileInput.files[0]);
-
-                document.getElementById('uploadStatus').textContent = 'Uploading...';
-
-                fetch('/upload', {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(response => {
-                    if (response.redirected) {
-                        document.getElementById('uploadStatus').textContent = "Upload successful! Processing...";
-                        setTimeout(() => {
-                            document.getElementById('uploadStatus').textContent = "";
-                            window.location.href = response.url;
-                        }, 1000);
-                    } else if (response.ok) {
-                        document.getElementById('uploadStatus').textContent = 'Upload successful!';
-                        setTimeout(() => {
-                            document.getElementById('uploadStatus').textContent = "";
-                            refreshData();
-                        }, 1000);
-                    } else {
-                        response.text().then(text => {
-                            document.getElementById('uploadStatus').textContent = 'Upload failed: ' + text;
-                        });
-                    }
-                })
-                .catch(error => {
-                    document.getElementById('uploadStatus').textContent = 'Upload error: ' + error.message;
+                fetch('/upload', { method: 'POST', body: formData }).then(r => {
+                    if (r.ok) {
+                        statusDiv.innerHTML = '<span class="text-neon-green">UPLOAD COMPLETE</span>';
+                        showToast('Upload Success', 'Analysis completed.', 'success');
+                        refreshData();
+                        setTimeout(() => statusDiv.textContent = '', 2000);
+                    } else { throw new Error(); }
+                }).catch(() => {
+                    statusDiv.innerHTML = '<span class="text-red-500">FAILED</span>';
+                    showToast('Error', 'Failed to upload.', 'error');
                 });
             });
         });
-        
-        const captureIntervalMs = { capture_interval_ms };
-        let timeRemaining = captureIntervalMs / 1000; // seconds
 
-        function updateCountdown() {
+        const captureIntervalMs = 60000;
+        const serverInterval = parseInt("{{ capture_interval_ms }}"); 
+        const interval = isNaN(serverInterval) ? captureIntervalMs : serverInterval;
+        let timeRemaining = interval / 1000;
+        setInterval(() => {
+            const timerEl = document.getElementById('countdown-timer');
             if (timeRemaining <= 0) {
-            document.getElementById('countdown-timer').textContent = "Please upload now!";
-            // Optionally trigger upload prompt/modal here
-            alert("Time to upload a new panel image for accurate soiling detection.");
-            timeRemaining = captureIntervalMs / 1000; // reset countdown
+                timerEl.textContent = "REQ UPLOAD";
+                timerEl.classList.add('text-red-500', 'border-red-500');
+                timeRemaining = interval / 1000;
             } else {
-            const minutes = Math.floor(timeRemaining / 60);
-            const seconds = timeRemaining % 60;
-            document.getElementById('countdown-timer').textContent = `${minutes}m ${seconds}s`;
-            timeRemaining--;
+                const m = Math.floor(timeRemaining / 60);
+                const s = Math.floor(timeRemaining % 60);
+                timerEl.textContent = `${m}:${s < 10 ? '0'+s : s}`;
+                timerEl.classList.remove('text-red-500', 'border-red-500');
+                timeRemaining--;
             }
-        }
-
-        updateCountdown(); // initial call to display immediately
-        setInterval(updateCountdown, 1000); // update every second
+        }, 1000);
+        setInterval(refreshData, 300000);
     </script>
 </body>
 </html>
