@@ -499,6 +499,18 @@ def manual_stop():
     send_arduino_command('S')
     return jsonify({"status": "sent", "type": "stop"})
 
+# --- NEW: HARDWARE STATUS CHECK ---
+@app.route('/api/hardware_status')
+def hardware_status():
+    is_connected = False
+    if arduino and arduino.is_open:
+        is_connected = True
+        
+    return jsonify({
+        'connected': is_connected, 
+        'port': ARDUINO_PORT
+    })
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     try:

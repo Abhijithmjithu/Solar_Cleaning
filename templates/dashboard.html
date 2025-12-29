@@ -105,7 +105,15 @@
                         <p class="text-[10px] text-slate-400 uppercase tracking-widest">AI Monitoring System</p>
                     </div>
                 </div>
+                
                 <div class="flex items-center gap-6">
+                    <div id="hw-badge" class="hidden md:flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800 border border-slate-700 transition-colors">
+                        <span id="hw-dot" class="relative flex h-2 w-2">
+                          <span class="relative inline-flex rounded-full h-2 w-2 bg-slate-500"></span>
+                        </span>
+                        <span id="hw-text" class="text-xs font-medium text-slate-400">CONNECTING...</span>
+                    </div>
+
                     <button onclick="refreshData()" class="group relative p-2 text-slate-400 hover:text-white transition-colors">
                         <i class="fa-solid fa-rotate-right text-lg group-hover:rotate-180 transition-transform duration-700"></i>
                     </button>
@@ -457,9 +465,35 @@
             updateAlerts(data);
         }
 
+        function checkHardwareStatus() {
+            fetch('/api/hardware_status')
+                .then(r => r.json())
+                .then(data => {
+                    const badge = document.getElementById('hw-badge');
+                    const dot = document.getElementById('hw-dot');
+                    const text = document.getElementById('hw-text');
+                    
+                    if (data.connected) {
+                        // Connected State (Green)
+                        badge.className = "hidden md:flex items-center gap-2 px-3 py-1 rounded-full bg-green-500/10 border border-green-500/20";
+                        dot.innerHTML = '<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>';
+                        text.className = "text-xs font-medium text-green-400";
+                        text.innerText = "ROBOT LINKED (" + data.port + ")";
+                    } else {
+                        // Disconnected State (Red)
+                        badge.className = "hidden md:flex items-center gap-2 px-3 py-1 rounded-full bg-red-500/10 border border-red-500/20";
+                        dot.innerHTML = '<span class="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>';
+                        text.className = "text-xs font-medium text-red-500";
+                        text.innerText = "CONNECTION LOST";
+                    }
+                })
+                .catch(err => console.log("Status Check Failed"));
+        }
+
         function refreshData() {
             const icon = document.querySelector('.fa-rotate-right');
             icon.classList.add('fa-spin');
+            checkHardwareStatus(); // Check connection status on refresh
             fetch('/api/data').then(r => r.json()).then(d => {
                 updateData(d);
                 setTimeout(() => icon.classList.remove('fa-spin'), 500);
@@ -513,6 +547,11 @@
             initializeCharts();
             loadHistoricalData();
             refreshData();
+            checkHardwareStatus(); // Initial hardware check
+            
+            // Periodically check hardware status
+            setInterval(checkHardwareStatus, 5000); 
+
             document.getElementById('uploadForm').addEventListener('submit', e => {
                 e.preventDefault();
                 const fileInput = document.getElementById('imageUpload');
