@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Solar Panel Soiling Detection & Monitoring System
-Logic: Normal -> Rain Check -> Dry Clean -> Verification -> Wet Clean -> Manual Alert
+Features: YOLOv8 AI, Rain Suppression, Dry/Wet Escalation, Arduino Control
 """
 
 import os
@@ -14,6 +14,7 @@ import sqlite3
 import json
 import logging
 import requests
+import serial # Requires: pip install pyserial
 from datetime import datetime
 from flask import Flask, render_template, jsonify, request, redirect, url_for, make_response
 from skimage.metrics import structural_similarity as ssim
@@ -28,7 +29,7 @@ except ImportError:
 
 from ultralytics import YOLO
 
-# Load config from JSON file
+# --- CONFIGURATION ---
 try:
     with open('config.json') as cfile:
         config_data = json.load(cfile)
@@ -56,6 +57,31 @@ class Config:
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = Config.UPLOAD_FOLDER
 
+# --- ARDUINO CONNECTION SETUP ---
+ARDUINO_PORT = 'COM3' # <--- CHANGE THIS TO YOUR PORT (e.g., /dev/ttyUSB0)
+BAUD_RATE = 9600
+arduino = None
+
+try:
+    arduino = serial.Serial(ARDUINO_PORT, BAUD_RATE, timeout=1)
+    time.sleep(2) # Wait for Arduino to reset
+    logging.info(f"Connected to Arduino on {ARDUINO_PORT}")
+except Exception as e:
+    logging.warning(f"Arduino connection failed: {e}")
+
+def send_arduino_command(command_char):
+    """Sends a single character command to Arduino via Serial"""
+    if arduino and arduino.is_open:
+        try:
+            arduino.write(command_char.encode())
+            logging.info(f"HARDWARE SIGNAL SENT: {command_char}")
+            return True
+        except Exception as e:
+            logging.error(f"Failed to send to Arduino: {e}")
+    else:
+        logging.warning(f"Hardware skipped (Not Connected). Simulation: Sent '{command_char}'")
+    return False
+
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in Config.ALLOWED_EXTENSIONS
 
@@ -74,7 +100,6 @@ class SoilingDetector:
     def setup_database(self):
         conn = sqlite3.connect(Config.DB_PATH)
         cursor = conn.cursor()
-        # Data table with 'alert_type'
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS soiling_data (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -89,8 +114,6 @@ class SoilingDetector:
                 alert_type TEXT
             )
         ''')
-        
-        # State Table: Tracks rain suppression AND cleaning escalation
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS system_state (
                 id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -98,8 +121,6 @@ class SoilingDetector:
                 cleaning_stage INTEGER DEFAULT 0
             )
         ''')
-        
-        # Initialize state row if not exists
         cursor.execute('INSERT OR IGNORE INTO system_state (id, suppression_count, cleaning_stage) VALUES (1, 0, 0)')
         conn.commit()
         conn.close()
@@ -261,6 +282,7 @@ class SoilingDetector:
                     if suppression_count >= 2:
                         # Rain persisted too long -> Force Dry Clean
                         alert_type = "Dry"
+                        send_arduino_command('d') # <--- HARDWARE TRIGGER
                         new_stage = 1  # Escalation
                         suppression_count = 0 
                         debug_msg += "Rain Override -> Dry Clean Initiated"
@@ -272,6 +294,7 @@ class SoilingDetector:
                 else:
                     # Dirty + No Rain -> Dry Clean
                     alert_type = "Dry"
+                    send_arduino_command('d') # <--- HARDWARE TRIGGER
                     new_stage = 1 # Escalation
                     suppression_count = 0
                     debug_msg += "Dirty -> Dry Clean Initiated"
@@ -285,6 +308,7 @@ class SoilingDetector:
             if is_soiled:
                 # Dry clean failed -> Escalate to Wet Clean
                 alert_type = "Wet"
+                send_arduino_command('w') # <--- HARDWARE TRIGGER
                 new_stage = 2 # Escalation
                 suppression_count = 0
                 debug_msg += "Dry Failed -> Escalating to Wet Clean"
@@ -299,6 +323,7 @@ class SoilingDetector:
             if is_soiled:
                 # Wet clean failed -> MANUAL ALERT
                 alert_type = "Manual"
+                # No hardware trigger for manual (user must act)
                 new_stage = 2 # Stay in this stage until fixed
                 debug_msg += "Wet Failed -> MANUAL INSPECTION ALERT"
             else:
@@ -448,6 +473,17 @@ def export_history():
     output.headers["Content-Disposition"] = "attachment; filename=solar_cleaning_log.csv"
     output.headers["Content-type"] = "text/csv"
     return output
+
+# --- MANUAL HARDWARE TRIGGERS ---
+@app.route('/api/manual_dry', methods=['POST'])
+def manual_dry():
+    send_arduino_command('d')
+    return jsonify({"status": "sent", "type": "dry"})
+
+@app.route('/api/manual_wet', methods=['POST'])
+def manual_wet():
+    send_arduino_command('w')
+    return jsonify({"status": "sent", "type": "wet"})
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

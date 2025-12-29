@@ -221,7 +221,7 @@
                         </div>
                     </div>
                 </div>
-
+                
                 <div class="glass-panel rounded-2xl p-4 opacity-70 hover:opacity-100 transition-all">
                     <h3 class="font-semibold text-slate-400 mb-3 text-xs uppercase">Reference Baseline</h3>
                     <div class="rounded-lg overflow-hidden h-64 w-full bg-slate-800 border border-slate-700">
@@ -244,7 +244,8 @@
                     </div>
                 </div>
 
-                <div class="glass-panel rounded-2xl p-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="glass-panel rounded-2xl p-6">
                         <h3 class="font-bold text-slate-200 mb-4 text-sm uppercase tracking-wide">Manual Override</h3>
                         <div class="grid grid-cols-2 gap-3">
                             <button onclick="triggerCapture()" class="flex flex-col items-center justify-center p-3 rounded-xl bg-slate-800/50 hover:bg-white/10 hover:text-white border border-slate-700 transition-all group">
@@ -477,19 +478,24 @@
             });
         }
 
-        function triggerCapture() { showToast('Capture Sequence', 'Command sent.', 'success'); }
-        // --- ADD THESE TWO NEW FUNCTIONS ---
+        function triggerCapture() { 
+            showToast('Capture Sequence', 'Command sent to optical unit.', 'success'); 
+        }
+
         function triggerDryClean() {
             showToast('Manual Override', 'Dry Cleaning sequence initiated.', 'info');
-            // If you connect hardware later, add fetch('/api/manual_dry') here
+            fetch('/api/manual_dry', { method: 'POST' }).catch(err => console.error("Error", err));
         }
 
         function triggerWetClean() {
             showToast('Manual Override', 'Wet Cleaning sequence initiated.', 'info');
-            // If you connect hardware later, add fetch('/api/manual_wet') here
+            fetch('/api/manual_wet', { method: 'POST' }).catch(err => console.error("Error", err));
         }
-        // -----------------------------------
-        function downloadReport() { showToast('Exporting Log', 'CSV generation...', 'info'); setTimeout(() => { window.location.href = '/api/export_history'; }, 1000); }
+
+        function downloadReport() { 
+            showToast('Exporting Log', 'CSV generation...', 'info'); 
+            setTimeout(() => { window.location.href = '/api/export_history'; }, 1000); 
+        }
 
         document.addEventListener('DOMContentLoaded', () => {
             initializeCharts();
