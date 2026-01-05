@@ -361,6 +361,9 @@
         let trendChart;
         let gaugeChart;
         let progressTimeout; 
+        
+        // --- GLOBAL CONNECTION STATUS ---
+        let isRobotConnected = false; 
 
         function showToast(title, message, type = 'info') {
             const toast = document.getElementById("toast");
@@ -489,14 +492,18 @@
             updateAlerts(data);
         }
 
+        // --- UPDATED: SELF-HEALING STATUS CHECK ---
         function checkHardwareStatus() {
-            fetch('/api/hardware_status')
+            // Return Promise to allow chaining in DOMContentLoaded
+            return fetch('/api/hardware_status')
                 .then(r => r.json())
                 .then(data => {
                     const badge = document.getElementById('hw-badge');
                     const dot = document.getElementById('hw-dot');
                     const text = document.getElementById('hw-text');
                     
+                    isRobotConnected = data.connected; // Update global var
+
                     if (data.connected) {
                         badge.className = "hidden md:flex items-center gap-2 px-3 py-1 rounded-full bg-green-500/10 border border-green-500/20";
                         dot.innerHTML = '<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>';
@@ -575,7 +582,7 @@
             modal.classList.remove('hidden');
 
             setTimeout(() => {
-                bar.style.transition = 'width 25s linear'; // 25s Timer
+                bar.style.transition = 'width 25s linear'; // 25s Timer to match Arduino
                 bar.style.width = '100%';
             }, 100);
 
@@ -594,23 +601,39 @@
         }
 
         function triggerDryClean() {
+            if (!isRobotConnected) {
+                showToast('Connection Error', 'Robot not connected. Cannot start cleaning.', 'error');
+                return;
+            }
             showToast('Robot Command', 'Dry Cleaning Cycle initiated...', 'info');
             fetch('/api/manual_dry', { method: 'POST' }).catch(err => console.error("Error", err));
-            showProgressModal('dry');
+            showProgressModal('dry'); 
         }
 
         function triggerWetClean() {
+            if (!isRobotConnected) {
+                showToast('Connection Error', 'Robot not connected. Cannot start cleaning.', 'error');
+                return;
+            }
             showToast('Robot Command', 'Wet Cleaning Cycle initiated...', 'info');
             fetch('/api/manual_wet', { method: 'POST' }).catch(err => console.error("Error", err));
-            showProgressModal('wet');
+            showProgressModal('wet'); 
         }
 
         function triggerReturn() {
+            if (!isRobotConnected) {
+                showToast('Connection Error', 'Robot not connected.', 'error');
+                return;
+            }
             showToast('Robot Command', 'Returning to Base Station...', 'info');
             fetch('/api/manual_return', { method: 'POST' }).catch(err => console.error(err));
         }
 
         function triggerStop() {
+            if (!isRobotConnected) {
+                showToast('Connection Error', 'Robot not connected.', 'error');
+                return;
+            }
             showToast('EMERGENCY', 'STOP SIGNAL SENT', 'error');
             fetch('/api/manual_stop', { method: 'POST' }).catch(err => console.error(err));
         }
@@ -621,24 +644,36 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            const autoTrigger = "{{ trigger_action }}";
-            
-            if (autoTrigger === 'Dry') {
-                showProgressModal('dry');
-                showToast('Auto-Cleaning', 'Dirt detected. Dry cycle started.', 'info');
-            } else if (autoTrigger === 'Wet') {
-                showProgressModal('wet');
-                showToast('Escalation', 'Dry clean failed. Wet cycle started.', 'info');
-            } else if (autoTrigger === 'Manual') {
-                const manualModal = document.getElementById('manual-modal');
-                if (manualModal) manualModal.classList.remove('hidden');
-            }
-
             initializeCharts();
             loadHistoricalData();
             refreshData();
-            checkHardwareStatus(); 
             
+            // Check status FIRST, then decide to trigger Auto-Clean
+            checkHardwareStatus().then(() => {
+                const autoTrigger = "{{ trigger_action }}";
+                
+                if (autoTrigger !== 'None' && autoTrigger !== '') {
+                    if (autoTrigger === 'Manual') {
+                        // Manual Inspection required (Critical Failure)
+                        const manualModal = document.getElementById('manual-modal');
+                        if (manualModal) manualModal.classList.remove('hidden');
+                    } 
+                    else if (!isRobotConnected) {
+                        // Robot Offline -> Show Toast instead of Popup
+                        showToast('Connection Error', `Cleaning Required (${autoTrigger}) but Robot Disconnected.`, 'error');
+                    } 
+                    else if (autoTrigger === 'Dry') {
+                        showProgressModal('dry');
+                        showToast('Auto-Cleaning', 'Dirt detected. Dry cycle started.', 'info');
+                    } 
+                    else if (autoTrigger === 'Wet') {
+                        showProgressModal('wet');
+                        showToast('Escalation', 'Dry clean failed. Wet cycle started.', 'info');
+                    }
+                }
+            });
+            
+            // Periodically check hardware status
             setInterval(checkHardwareStatus, 5000); 
 
             document.getElementById('uploadForm').addEventListener('submit', e => {
