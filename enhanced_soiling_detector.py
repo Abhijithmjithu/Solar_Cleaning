@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Solar Panel Soiling Detection & Monitoring System
-Integrates: YOLOv8 AI + Robot V4.0 (Flip/Move/Pause/Return)
+Features: Self-Healing Serial, Physical Disconnect Detection, YOLOv8 AI
 """
 
 import os
@@ -14,7 +14,8 @@ import sqlite3
 import json
 import logging
 import requests
-import serial # Requires: pip install pyserial
+import serial
+import serial.tools.list_ports # Required for port scanning
 from datetime import datetime
 from flask import Flask, render_template, jsonify, request, redirect, url_for, make_response
 from skimage.metrics import structural_similarity as ssim
@@ -49,7 +50,7 @@ class Config:
     SOILING_AREA_THRESHOLD = config_data.get("SOILING_AREA_THRESHOLD")
     CAMERA_WIDTH = config_data.get("CAMERA_WIDTH", 512)
     CAMERA_HEIGHT = config_data.get("CAMERA_HEIGHT", 512)
-    CAPTURE_INTERVAL = 7200  # seconds (2 hours)
+    CAPTURE_INTERVAL = 7200
     UPLOAD_FOLDER = 'static/uploads'
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
     RAIN_PROBABILITY_THRESHOLD = config_data.get("RAIN_PROBABILITY_THRESHOLD", 75)
@@ -57,32 +58,37 @@ class Config:
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = Config.UPLOAD_FOLDER
 
-# --- ARDUINO CONNECTION SETUP ---
-# IMPORTANT: Change this to your actual port (e.g., '/dev/ttyUSB0' or 'COM3')
-ARDUINO_PORT = 'COM3' 
+# --- ROBUST ARDUINO CONNECTION ---
+ARDUINO_PORT = 'COM4' # <--- VERIFY THIS PORT
 BAUD_RATE = 9600
 arduino = None
 
-try:
-    arduino = serial.Serial(ARDUINO_PORT, BAUD_RATE, timeout=1)
-    time.sleep(2) # Wait for Arduino to reset
-    logging.info(f"Connected to Robot V4.0 on {ARDUINO_PORT}")
-except Exception as e:
-    logging.warning(f"Arduino connection failed: {e}")
+def get_arduino_connection():
+    global arduino
+    if arduino is not None and arduino.is_open:
+        return arduino
+    try:
+        arduino = serial.Serial(ARDUINO_PORT, BAUD_RATE, timeout=1)
+        time.sleep(2) 
+        logging.info(f"SUCCESS: Reconnected to Robot on {ARDUINO_PORT}")
+        return arduino
+    except Exception as e:
+        return None
 
 def send_arduino_command(command_char):
-    """Sends a single character command to Arduino via Serial"""
-    if arduino and arduino.is_open:
+    device = get_arduino_connection()
+    if device:
         try:
-            # Send uppercase to match your Arduino code checks
             cmd = command_char.upper()
-            arduino.write(cmd.encode())
+            device.write(cmd.encode())
             logging.info(f"ROBOT SIGNAL SENT: {cmd}")
             return True
         except Exception as e:
-            logging.error(f"Failed to send to Arduino: {e}")
+            logging.error(f"Lost connection during send: {e}")
+            global arduino
+            arduino = None
     else:
-        logging.warning(f"Hardware skipped (Not Connected). Simulation: Sent '{command_char}'")
+        logging.warning(f"Cannot send '{command_char}' - Robot Offline")
     return False
 
 def allowed_file(filename):
@@ -254,51 +260,44 @@ class SoilingDetector:
         conn.close()
 
     def process_image_file(self, filepath):
-        # 1. Image Processing
         image = cv2.imread(filepath)
         if image is None:
             logging.error(f"Failed to read image from {filepath}")
-            return None, None
+            return None, None, "None"
         
         processed_image = self.preprocess_image(image)
         masks = self.detect_soiling(processed_image)
         metrics = self.calculate_soiling_metrics(processed_image, masks)
         rain_expected, weather_data = self.check_weather()
 
-        # 2. Logic Variables
         threshold = float(Config.SOILING_AREA_THRESHOLD)
         suppression_count, cleaning_stage = self.get_state()
         
         alert_type = "None"
-        new_stage = cleaning_stage # Default keep current stage
+        new_stage = cleaning_stage
         
         debug_msg = f"[LOGIC] Soiling: {metrics['soiling_area_percent']:.1f}% | Stage: {cleaning_stage} | Rain: {rain_expected} | "
 
-        # 3. Decision Logic
         is_soiled = metrics['soiling_area_percent'] >= threshold
 
         if cleaning_stage == 0:
-            # --- NORMAL MONITORING PHASE ---
             if is_soiled:
                 if rain_expected:
                     suppression_count += 1
                     if suppression_count >= 2:
-                        # Rain persisted too long -> Force Dry Clean
                         alert_type = "Dry"
-                        send_arduino_command('D') # <--- ROBOT TRIGGER (Flip Brush + Move)
-                        new_stage = 1  # Escalation
+                        send_arduino_command('D') 
+                        new_stage = 1  
                         suppression_count = 0 
                         debug_msg += "Rain Override -> Dry Clean Initiated"
                     else:
-                        # Suppress
                         alert_type = "None"
                         new_stage = 0
                         debug_msg += f"Rain Detected -> Suppressing (Count {suppression_count})"
                 else:
-                    # Dirty + No Rain -> Dry Clean
                     alert_type = "Dry"
-                    send_arduino_command('D') # <--- ROBOT TRIGGER (Flip Brush + Move)
-                    new_stage = 1 # Escalation
+                    send_arduino_command('D') 
+                    new_stage = 1 
                     suppression_count = 0
                     debug_msg += "Dirty -> Dry Clean Initiated"
             else:
@@ -307,37 +306,30 @@ class SoilingDetector:
                 debug_msg += "System Clean"
 
         elif cleaning_stage == 1:
-            # --- POST-DRY-CLEAN VERIFICATION ---
             if is_soiled:
-                # Dry clean failed -> Escalate to Wet Clean
                 alert_type = "Wet"
-                send_arduino_command('W') # <--- ROBOT TRIGGER (Flip Wiper + Move)
-                new_stage = 2 # Escalation
+                send_arduino_command('W') 
+                new_stage = 2 
                 suppression_count = 0
                 debug_msg += "Dry Failed -> Escalating to Wet Clean"
             else:
                 alert_type = "None"
-                new_stage = 0 # Reset
+                new_stage = 0
                 suppression_count = 0
                 debug_msg += "Dry Clean Successful -> System Clean"
 
         elif cleaning_stage == 2:
-            # --- POST-WET-CLEAN VERIFICATION ---
             if is_soiled:
-                # Wet clean failed -> MANUAL ALERT
                 alert_type = "Manual"
-                # No hardware trigger for manual (user must act)
-                new_stage = 2 # Stay in this stage until fixed
+                new_stage = 2 
                 debug_msg += "Wet Failed -> MANUAL INSPECTION ALERT"
             else:
                 alert_type = "None"
-                new_stage = 0 # Reset
+                new_stage = 0 
                 debug_msg += "Manual/Wet Clean Successful -> System Clean"
 
-        # 4. Save State & Data
         self.update_state(suppression_count, new_stage)
         
-        # Overlay Mask Generation
         height, width = processed_image.shape[:2]
         combined_mask = np.zeros((height, width), dtype=bool)
         for mask in masks:
@@ -353,18 +345,16 @@ class SoilingDetector:
         self.save_data_new(metrics, relative_image_path, weather_data, alert_type)
         
         logging.info(f"{debug_msg}")
-        return metrics, relative_image_path
+        return metrics, relative_image_path, alert_type
     
-# Initialize detector
 detector = SoilingDetector()
 
-# Try to load reference image
 try:
     if os.path.exists('./static/reference_panel.jpg'):
         detector.reference_image = cv2.imread('./static/reference_panel.jpg')
         logging.info("Reference image loaded successfully")
     else:
-        logging.warning("No reference image found (/static/reference_panel.jpg)")
+        logging.warning("No reference image found")
 except Exception as e:
     logging.warning(f"Failed to load reference image: {e}")
 
@@ -377,20 +367,22 @@ def dashboard():
     conn.close()
     
     soiling_area_percent = row[0] if row else 0
-    alert_type = row[1] if row else "None"
+    db_alert_type = row[1] if row else "None"
     
     status = "Clean"
     if soiling_area_percent >= Config.SOILING_AREA_THRESHOLD:
         status = "Needs Attention"
-    if alert_type != "None":
-        status = f"Action Required: {alert_type}"
+    if db_alert_type != "None":
+        status = f"Action Required: {db_alert_type}"
         
     capture_interval_ms = Config.CAPTURE_INTERVAL * 1000
+    trigger_action = request.args.get('trigger', 'None')
     
     return render_template('dashboard.html', 
                            system_status=status, 
                            capture_interval_ms=capture_interval_ms,
-                           threshold=Config.SOILING_AREA_THRESHOLD)
+                           threshold=Config.SOILING_AREA_THRESHOLD,
+                           trigger_action=trigger_action)
 
 @app.route('/upload', methods=['GET', 'POST'])
 def upload_image():
@@ -406,8 +398,10 @@ def upload_image():
             filename = datetime.now().strftime("upload_%Y%m%d_%H%M%S.jpg")
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file.save(filepath)
-            metrics, masked_image_path = detector.process_image_file(filepath)
-            return redirect(url_for('dashboard'))
+            
+            metrics, masked_image_path, alert_type = detector.process_image_file(filepath)
+            return redirect(url_for('dashboard', trigger=alert_type))
+            
     return "Upload Failed", 400
 
 @app.route('/api/data')
@@ -437,7 +431,7 @@ def get_data():
                 'ssim_score': row[3],
                 'image_path': row[4],
                 'alert_type': row[5],
-                'alert_sent': row[5] != "None", # Compatibility
+                'alert_sent': row[5] != "None",
                 'weather_data': weather_json
             })
     except Exception as e:
@@ -478,7 +472,6 @@ def export_history():
     output.headers["Content-type"] = "text/csv"
     return output
 
-# --- MANUAL HARDWARE TRIGGERS ---
 @app.route('/api/manual_dry', methods=['POST'])
 def manual_dry():
     send_arduino_command('D')
@@ -499,24 +492,32 @@ def manual_stop():
     send_arduino_command('S')
     return jsonify({"status": "sent", "type": "stop"})
 
-# --- NEW: HARDWARE STATUS CHECK ---
+# --- UPDATED: PHYSICAL DISCONNECT DETECTION ---
 @app.route('/api/hardware_status')
 def hardware_status():
-    is_connected = False
-    if arduino and arduino.is_open:
-        is_connected = True
-        
-    return jsonify({
-        'connected': is_connected, 
-        'port': ARDUINO_PORT
-    })
+    global arduino
+    
+    # 1. Check if the Port still exists in the OS
+    ports = [p.device for p in serial.tools.list_ports.comports()]
+    
+    if ARDUINO_PORT not in ports:
+        if arduino:
+            try:
+                arduino.close()
+            except: pass
+        arduino = None
+        return jsonify({'connected': False, 'port': ARDUINO_PORT})
+
+    # 2. If Port exists, check/init connection
+    device = get_arduino_connection()
+    is_connected = (device is not None and device.is_open)
+    
+    return jsonify({'connected': is_connected, 'port': ARDUINO_PORT})
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     try:
         from flask_cors import CORS
         CORS(app)
-    except ImportError:
-        pass
-    logging.info("Starting Flask app on 0.0.0.0:5000")
+    except ImportError: pass
     app.run(host='0.0.0.0', port=5000, debug=True)
