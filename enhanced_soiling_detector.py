@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Solar Panel Soiling Detection & Monitoring System
-Features: Self-Healing Serial, Physical Disconnect Detection, YOLOv8 AI
+Features: Self-Healing Serial, Physical Disconnect Detection, YOLOv8 AI, Config Display
 """
 
 import os
@@ -15,12 +15,11 @@ import json
 import logging
 import requests
 import serial
-import serial.tools.list_ports # Required for port scanning
+import serial.tools.list_ports 
 from datetime import datetime
 from flask import Flask, render_template, jsonify, request, redirect, url_for, make_response
 from skimage.metrics import structural_similarity as ssim
 
-# Fix for PyTorch loading issue
 try:
     import torch.serialization
     from ultralytics.nn.tasks import SegmentationModel
@@ -30,7 +29,6 @@ except ImportError:
 
 from ultralytics import YOLO
 
-# --- CONFIGURATION ---
 try:
     with open('config.json') as cfile:
         config_data = json.load(cfile)
@@ -215,6 +213,40 @@ class SoilingDetector:
         }
 
     def check_weather(self):
+        # --- TEST SETTINGS ---
+        TEST_MODE = False
+        
+        # CHANGE THIS NUMBER to test different scenarios:
+        # e.g., 80 = Rain Lock Active (if threshold is 75)
+        # e.g., 20 = System Active (Clean)
+        manual_probability = 80 
+        # ---------------------
+
+        if TEST_MODE:
+            # Automatically determine if this counts as "Rain" based on your Config
+            # This ensures your Test Mode logic matches your Real World logic
+            is_raining = manual_probability > Config.RAIN_PROBABILITY_THRESHOLD
+            
+            logging.info(f"WEATHER TEST: Prob={manual_probability}% | Threshold={Config.RAIN_PROBABILITY_THRESHOLD}% | Rain Mode={'ON' if is_raining else 'OFF'}")
+
+            dummy_data = {
+                'current': {
+                    'temp_c': 25.4, 
+                    'condition': {'text': 'Mist' if is_raining else 'Sunny'}
+                },
+                'forecast': {
+                    'forecastday': [{
+                        'hour': [
+                            # We inject your manual number here so the dashboard sees it
+                            {'time': '2023-01-01 12:00', 'temp_c': 21.6, 'chance_of_rain': manual_probability},
+                            {'time': '2023-01-01 13:00', 'temp_c': 22.0, 'chance_of_rain': manual_probability}
+                        ]
+                    }]
+                }
+            }
+            return is_raining, dummy_data
+
+        # --- ORIGINAL LOGIC BELOW ---
         try:
             url = "http://api.weatherapi.com/v1/forecast.json"
             params = {
@@ -226,11 +258,20 @@ class SoilingDetector:
             }
             response = requests.get(url, params=params)
             data = response.json()
+            
             rain_probability = 0
+            # Get the next hour's forecast specifically
             hours = data.get('forecast', {}).get('forecastday', [])[0].get('hour', [])
-            for hour_data in hours[:1]:
-                rain_prob = int(hour_data.get('chance_of_rain', 0))
-                rain_probability = max(rain_probability, rain_prob)
+            
+            # Simple check of the first available hour in the list
+            if hours:
+                rain_probability = int(hours[0].get('chance_of_rain', 0))
+
+            rain_expected = rain_probability > Config.RAIN_PROBABILITY_THRESHOLD
+            return rain_expected, data
+        except Exception as e:
+            logging.error(f"WeatherAPI error: {e}")
+            return False, {}
 
             rain_expected = rain_probability > Config.RAIN_PROBABILITY_THRESHOLD
             return rain_expected, data
@@ -284,14 +325,18 @@ class SoilingDetector:
             if is_soiled:
                 if rain_expected:
                     suppression_count += 1
+                    # --- CHANGE STARTS HERE ---
                     if suppression_count >= 2:
+                        # (Keep your existing override logic here if you have it)
                         alert_type = "Dry"
                         send_arduino_command('D') 
                         new_stage = 1  
                         suppression_count = 0 
                         debug_msg += "Rain Override -> Dry Clean Initiated"
                     else:
-                        alert_type = "None"
+                        # OLD: alert_type = "None"
+                        # NEW: Explicitly tell dashboard we are suppressing
+                        alert_type = "Rain Suppressed" 
                         new_stage = 0
                         debug_msg += f"Rain Detected -> Suppressing (Count {suppression_count})"
                 else:
@@ -378,10 +423,12 @@ def dashboard():
     capture_interval_ms = Config.CAPTURE_INTERVAL * 1000
     trigger_action = request.args.get('trigger', 'None')
     
+    # --- UPDATED: Pass both thresholds to the template ---
     return render_template('dashboard.html', 
                            system_status=status, 
                            capture_interval_ms=capture_interval_ms,
                            threshold=Config.SOILING_AREA_THRESHOLD,
+                           rain_threshold=Config.RAIN_PROBABILITY_THRESHOLD,
                            trigger_action=trigger_action)
 
 @app.route('/upload', methods=['GET', 'POST'])
@@ -492,14 +539,10 @@ def manual_stop():
     send_arduino_command('S')
     return jsonify({"status": "sent", "type": "stop"})
 
-# --- UPDATED: PHYSICAL DISCONNECT DETECTION ---
 @app.route('/api/hardware_status')
 def hardware_status():
     global arduino
-    
-    # 1. Check if the Port still exists in the OS
     ports = [p.device for p in serial.tools.list_ports.comports()]
-    
     if ARDUINO_PORT not in ports:
         if arduino:
             try:
@@ -508,10 +551,8 @@ def hardware_status():
         arduino = None
         return jsonify({'connected': False, 'port': ARDUINO_PORT})
 
-    # 2. If Port exists, check/init connection
     device = get_arduino_connection()
     is_connected = (device is not None and device.is_open)
-    
     return jsonify({'connected': is_connected, 'port': ARDUINO_PORT})
 
 if __name__ == "__main__":
@@ -521,3 +562,4 @@ if __name__ == "__main__":
         CORS(app)
     except ImportError: pass
     app.run(host='0.0.0.0', port=5000, debug=True)
+
